@@ -36,6 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# project specific - excluded from version control
+/docs
+/public/data
+GIT_WORKFLOW.md
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
