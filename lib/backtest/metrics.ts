@@ -24,7 +24,7 @@ export function calculateMetrics(
 
   // 거래 쌍 분석 (매수-매도)
   const tradePairs = getTradePairs(trades);
-  const winRate = calculateWinRate(tradePairs);
+  const winRate = calculateWinRate(tradePairs, trades);
 
   // MDD 계산
   const mdd = calculateMDD(equity);
@@ -61,9 +61,24 @@ function getTradePairs(trades: Trade[]): { buy: Trade; sell: Trade }[] {
 }
 
 /**
- * 승률 계산
+ * 승률 계산 (이동평균 방식)
+ * costBasis가 있으면 avgCost 기준, 없으면 기존 방식
  */
-function calculateWinRate(tradePairs: { buy: Trade; sell: Trade }[]): number {
+function calculateWinRate(tradePairs: { buy: Trade; sell: Trade }[], trades: Trade[]): number {
+  // costBasis가 있는 매도 거래가 있으면 이동평균 방식 사용
+  const sellTradesWithCostBasis = trades.filter(
+    (t) => t.type === 'sell' && t.costBasis !== undefined && t.costBasis > 0
+  );
+
+  if (sellTradesWithCostBasis.length > 0) {
+    // 이동평균 방식: sell.price > costBasis (avgCost)
+    const winningTrades = sellTradesWithCostBasis.filter(
+      (t) => t.price > t.costBasis!
+    );
+    return (winningTrades.length / sellTradesWithCostBasis.length) * 100;
+  }
+
+  // 기존 방식: tradePairs 기반
   if (tradePairs.length === 0) return 0;
 
   const winningTrades = tradePairs.filter(

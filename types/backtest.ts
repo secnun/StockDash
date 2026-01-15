@@ -18,6 +18,9 @@ export interface Trade {
   price: number;
   quantity: number;
   value: number;
+  costBasis?: number; // 거래 시점의 평균 매수가 (이동평균)
+  tier?: number; // 티어 번호 (1~7)
+  tierSlots?: string; // 현재 보유 티어 상태 (예: "1,2,3")
 }
 
 // 백테스트 결과

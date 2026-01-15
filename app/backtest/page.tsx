@@ -5,6 +5,7 @@ import { getAllStrategies, getStrategy } from '@/lib/strategies';
 import { loadCSVFromFile } from '@/lib/backtest/dataLoader';
 import { BacktestResult, OHLCV } from '@/types/backtest';
 import EquityChart from '@/components/backtest/Charts/EquityChart';
+import { backestResultToCSV, downloadCSV, generateFilename } from '@/lib/backtest/csvExport';
 
 interface Ticker {
   id: string;
@@ -271,9 +272,6 @@ export default function BacktestPage() {
           {selectedStrategy && (
             <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
               <div className="flex flex-wrap gap-3 items-end">
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 self-center">
-                  {selectedStrategy.name}:
-                </span>
                 {selectedStrategy.parameters.map((param) => (
                   <div key={param.key} className="flex-shrink-0">
                     <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{param.label}</label>
@@ -296,21 +294,48 @@ export default function BacktestPage() {
         </div>
 
         {/* 성과 지표 */}
-        <div className="grid grid-cols-5 gap-2 mb-4">
-          {[
-            { label: '총 수익률', value: result?.metrics.totalReturn.toFixed(2) || '-', unit: '%', color: result && result.metrics.totalReturn >= 0 ? 'text-green-600' : 'text-red-600' },
-            { label: 'CAGR', value: result?.metrics.cagr.toFixed(2) || '-', unit: '%', color: result && result.metrics.cagr >= 0 ? 'text-green-600' : 'text-red-600' },
-            { label: 'MDD', value: result?.metrics.mdd.toFixed(2) || '-', unit: '%', color: 'text-red-600' },
-            { label: '승률', value: result?.metrics.winRate.toFixed(2) || '-', unit: '%', color: 'text-blue-600' },
-            { label: '거래', value: result?.metrics.totalTrades.toString() || '-', unit: '회', color: 'text-gray-600 dark:text-gray-300' },
-          ].map((metric) => (
-            <div key={metric.label} className="bg-white dark:bg-gray-800 rounded-lg shadow p-3">
-              <div className="text-xs text-gray-500 dark:text-gray-400">{metric.label}</div>
-              <div className={`text-lg font-bold ${metric.color}`}>
-                {metric.value}<span className="text-xs font-normal ml-0.5">{metric.unit}</span>
+        <div className="flex gap-2 mb-4">
+          <div className="grid grid-cols-5 gap-2 flex-1">
+            {[
+              { label: '총 수익률', value: result?.metrics.totalReturn.toFixed(2) || '-', unit: '%', color: result && result.metrics.totalReturn >= 0 ? 'text-green-600' : 'text-red-600' },
+              { label: 'CAGR', value: result?.metrics.cagr.toFixed(2) || '-', unit: '%', color: result && result.metrics.cagr >= 0 ? 'text-green-600' : 'text-red-600' },
+              { label: 'MDD', value: result?.metrics.mdd.toFixed(2) || '-', unit: '%', color: 'text-red-600' },
+              { label: '승률', value: result?.metrics.winRate.toFixed(2) || '-', unit: '%', color: 'text-blue-600' },
+              { label: '거래', value: result?.metrics.totalTrades.toString() || '-', unit: '회', color: 'text-gray-600 dark:text-gray-300' },
+            ].map((metric) => (
+              <div key={metric.label} className="bg-white dark:bg-gray-800 rounded-lg shadow p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400">{metric.label}</div>
+                <div className={`text-lg font-bold ${metric.color}`}>
+                  {metric.value}<span className="text-xs font-normal ml-0.5">{metric.unit}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+          {/* CSV 다운로드 버튼 */}
+          {result && selectedStrategy && (
+            <button
+              onClick={() => {
+                const ticker = tickers.find(t => t.id === selectedTicker);
+                const csv = backestResultToCSV(
+                  result,
+                  selectedStrategy.name,
+                  ticker?.name || selectedTicker,
+                  startDate,
+                  endDate,
+                  Number(initialCapitalStr) || 10000
+                );
+                const filename = generateFilename(selectedStrategy.name, ticker?.name || selectedTicker);
+                downloadCSV(csv, filename);
+              }}
+              className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 flex flex-col items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              title="CSV 다운로드"
+            >
+              <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">CSV</span>
+            </button>
+          )}
         </div>
 
         {/* 차트 영역 */}

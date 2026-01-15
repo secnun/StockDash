@@ -1,5 +1,6 @@
 import { Strategy } from '@/types/backtest';
 import { ddeolsapro1Strategy } from './ddeolsapro1';
+import { ddeolsapro1TestStrategy } from './ddeolsapro1Test';
 
 /**
  * 전략 레지스트리
@@ -7,6 +8,7 @@ import { ddeolsapro1Strategy } from './ddeolsapro1';
  */
 export const strategies: Record<string, Strategy> = {
   [ddeolsapro1Strategy.id]: ddeolsapro1Strategy,
+  [ddeolsapro1TestStrategy.id]: ddeolsapro1TestStrategy,
 };
 
 /**

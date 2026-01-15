@@ -112,6 +112,11 @@ export default function EquityChart({ equity, initialCapital }: EquityChartProps
       bottomFillColor2: 'rgba(239, 68, 68, 0.28)',
       lineWidth: 2,
       priceScaleId: 'right',
+      priceFormat: {
+        type: 'custom',
+        formatter: (price: number) => `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
+        minMove: 1,
+      },
     });
     equitySeries.setData(lineData);
 
@@ -133,25 +138,26 @@ export default function EquityChart({ equity, initialCapital }: EquityChartProps
       },
     ]);
 
-    // Drawdown 히스토그램 (별도 스케일)
+    // Drawdown 히스토그램 (좌측 스케일 사용)
     const drawdownSeries = chart.addHistogramSeries({
       color: '#ef4444',
-      priceScaleId: 'drawdown',
+      priceScaleId: 'left',
       priceFormat: {
         type: 'custom',
         formatter: (price: number) => `${price.toFixed(1)}%`,
+        minMove: 0.1,
       },
       crosshairMarkerVisible: true,
       lastValueVisible: true,
     });
 
-    // Drawdown 스케일 설정 (왼쪽에 표시, 하단에 배치)
-    chart.priceScale('drawdown').applyOptions({
+    // 좌측 스케일 설정 (Drawdown 표시, 하단에 배치)
+    chart.priceScale('left').applyOptions({
       scaleMargins: {
         top: 0.7, // 상단 70%는 Equity용
         bottom: 0.05,
       },
-      position: 'left',
+      visible: true,
     });
 
     drawdownSeries.setData(drawdownData);
@@ -204,16 +210,20 @@ export default function EquityChart({ equity, initialCapital }: EquityChartProps
   return (
     <div className="w-full h-full relative">
       <div ref={chartContainerRef} className="w-full h-full" />
-      {/* 범례 */}
-      <div className="absolute top-2 left-2 flex gap-4 text-xs">
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-0.5 bg-green-500"></div>
-          <span className="text-gray-600 dark:text-gray-400">Equity</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 bg-red-500/50"></div>
-          <span className="text-gray-600 dark:text-gray-400">Drawdown</span>
-        </div>
+
+      {/* Equity 영역 라벨 */}
+      <div className="absolute top-2 left-2 flex items-center gap-1 text-xs bg-white/80 dark:bg-gray-800/80 px-2 py-1 rounded">
+        <div className="w-3 h-0.5 bg-green-500"></div>
+        <span className="text-gray-700 dark:text-gray-300 font-medium">Equity ($)</span>
+      </div>
+
+      {/* 영역 구분선 */}
+      <div className="absolute left-0 right-0 top-[65%] border-t border-dashed border-gray-400 dark:border-gray-500 pointer-events-none" />
+
+      {/* Drawdown 영역 라벨 */}
+      <div className="absolute top-[67%] left-2 flex items-center gap-1 text-xs bg-white/80 dark:bg-gray-800/80 px-2 py-1 rounded">
+        <div className="w-3 h-3 bg-red-500/50"></div>
+        <span className="text-gray-700 dark:text-gray-300 font-medium">Drawdown (%)</span>
       </div>
     </div>
   );
