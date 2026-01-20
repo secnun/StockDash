@@ -83,7 +83,8 @@ export default function DrawdownChart({ equity }: DrawdownChartProps) {
         minimumWidth: 80,
       },
       leftPriceScale: {
-        visible: false,
+        visible: true,
+        minimumWidth: 80,
       },
     });
 
