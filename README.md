@@ -109,6 +109,7 @@ npm run dev
 |------|------|
 | `/docs` | 개인 문서 및 전략 메모 |
 | `/public/data` | 시세 데이터 (용량/저작권) |
+| `/lib/strategies` | 매매 전략 로직 (비공개) |
 | `/.claude/` | Claude Code 설정 |
 
 ## 스크립트

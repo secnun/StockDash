@@ -3,7 +3,7 @@ import { BacktestResult, Trade } from '@/types/backtest';
 /**
  * 거래 내역을 CSV 문자열로 변환
  */
-export function tradesToCSV(trades: Trade[], strategyName: string): string {
+export function tradesToCSV(trades: Trade[]): string {
   const headers = [
     'Date',
     'Type',
@@ -74,7 +74,7 @@ export function backestResultToCSV(
   initialCapital: number
 ): string {
   const summary = metricsToCSV(result, strategyName, ticker, startDate, endDate, initialCapital);
-  const trades = tradesToCSV(result.trades, strategyName);
+  const trades = tradesToCSV(result.trades);
 
   return `=== Performance Summary ===\n${summary}\n\n=== Trade History ===\n${trades}`;
 }

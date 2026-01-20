@@ -41,7 +41,7 @@ export function calculateMetrics(
     mdd: roundTo(mdd, 2),
     winRate: roundTo(winRate, 2),
     sharpeRatio: roundTo(sharpeRatio, 2),
-    totalTrades: tradePairs.length,
+    totalTrades: trades.length,
   };
 }
 

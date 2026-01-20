@@ -1,100 +1,173 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { createChart, UTCTimestamp } from 'lightweight-charts';
+import { createChart, UTCTimestamp, IChartApi } from 'lightweight-charts';
+import { getChartTheme, isDarkMode } from '@/lib/theme/chartTheme';
 
 interface DrawdownChartProps {
   equity: { time: number; value: number }[];
 }
 
+// Drawdown 데이터 계산
+function calculateDrawdown(equity: { time: number; value: number }[]) {
+  let maxValue = equity[0]?.value || 0;
+  let mddValue = 0;
+  let mddPeakTime = equity[0]?.time || 0;
+  let mddTroughTime = equity[0]?.time || 0;
+
+  const drawdownData = equity.map((point) => {
+    if (point.value > maxValue) {
+      maxValue = point.value;
+    }
+    const drawdown = ((point.value - maxValue) / maxValue) * 100;
+
+    if (drawdown < mddValue) {
+      mddValue = drawdown;
+      mddTroughTime = point.time;
+    }
+
+    return {
+      time: point.time as UTCTimestamp,
+      value: drawdown,
+    };
+  });
+
+  // MDD 고점 찾기
+  let currentMax = equity[0]?.value || 0;
+  for (const point of equity) {
+    if (point.value > currentMax) {
+      currentMax = point.value;
+      mddPeakTime = point.time;
+    }
+    const dd = ((point.value - currentMax) / currentMax) * 100;
+    if (Math.abs(dd - mddValue) < 0.0001) {
+      break;
+    }
+  }
+
+  return {
+    data: drawdownData,
+    mdd: mddValue,
+    mddPeakTime,
+    mddTroughTime,
+  };
+}
+
 export default function DrawdownChart({ equity }: DrawdownChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
 
   useEffect(() => {
     if (!chartContainerRef.current || equity.length === 0) return;
 
-    // Drawdown 계산
-    const drawdownData = [];
-    let maxValue = equity[0].value;
+    const isDark = isDarkMode();
+    const theme = getChartTheme(isDark);
 
-    for (const point of equity) {
-      if (point.value > maxValue) {
-        maxValue = point.value;
-      }
-
-      const drawdown = ((point.value - maxValue) / maxValue) * 100;
-
-      drawdownData.push({
-        time: point.time as UTCTimestamp,
-        value: drawdown,
-      });
-    }
-
-    // 차트 생성
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: 200,
+      height: chartContainerRef.current.clientHeight || 150,
       layout: {
-        background: { color: '#ffffff' },
-        textColor: '#333',
+        background: { color: theme.background },
+        textColor: theme.text,
       },
       grid: {
-        vertLines: { color: '#f0f0f0' },
-        horzLines: { color: '#f0f0f0' },
+        vertLines: { color: theme.grid },
+        horzLines: { color: theme.grid },
       },
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
       },
+      rightPriceScale: {
+        visible: true,
+        minimumWidth: 80,
+      },
+      leftPriceScale: {
+        visible: false,
+      },
     });
 
-    // Area 시리즈 추가
-    const areaSeries = chart.addAreaSeries({
-      lineColor: '#ef5350',
-      topColor: 'rgba(239, 83, 80, 0.4)',
-      bottomColor: 'rgba(239, 83, 80, 0.0)',
-      lineWidth: 2,
+    chartRef.current = chart;
+
+    const { data: drawdownData, mdd, mddTroughTime } = calculateDrawdown(equity);
+
+    // Drawdown 히스토그램
+    const drawdownSeries = chart.addHistogramSeries({
+      color: theme.drawdown.histogram,
+      priceScaleId: 'right',
+      priceFormat: {
+        type: 'custom',
+        formatter: (price: number) => `${price.toFixed(1)}%`,
+        minMove: 0.1,
+      },
+      lastValueVisible: true,
     });
 
-    areaSeries.setData(drawdownData);
+    drawdownSeries.setData(drawdownData);
 
-    // 0 라인 추가를 위한 라인 시리즈
-    const zeroLine = chart.addLineSeries({
-      color: '#000000',
-      lineWidth: 1,
-      lineStyle: 2, // Dashed
-      priceLineVisible: false,
-    });
-
-    zeroLine.setData([
-      { time: drawdownData[0].time as UTCTimestamp, value: 0 },
-      { time: drawdownData[drawdownData.length - 1].time as UTCTimestamp, value: 0 },
+    // MDD 마커
+    drawdownSeries.setMarkers([
+      {
+        time: mddTroughTime as UTCTimestamp,
+        position: 'belowBar',
+        color: theme.markers.mddTrough,
+        shape: 'arrowUp',
+        text: `MDD ${mdd.toFixed(2)}%`,
+      },
     ]);
 
-    // 차트 자동 피팅
     chart.timeScale().fitContent();
 
     // 반응형 처리
     const handleResize = () => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({
+      if (chartContainerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({
           width: chartContainerRef.current.clientWidth,
+          height: chartContainerRef.current.clientHeight || 150,
         });
       }
     };
 
     window.addEventListener('resize', handleResize);
 
-    // 클린업
+    // 다크모드 변경 감지
+    const observer = new MutationObserver(() => {
+      const isDarkNow = isDarkMode();
+      const newTheme = getChartTheme(isDarkNow);
+
+      if (chartRef.current) {
+        chartRef.current.applyOptions({
+          layout: {
+            background: { color: newTheme.background },
+            textColor: newTheme.text,
+          },
+          grid: {
+            vertLines: { color: newTheme.grid },
+            horzLines: { color: newTheme.grid },
+          },
+        });
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
     return () => {
       window.removeEventListener('resize', handleResize);
+      observer.disconnect();
       chart.remove();
     };
   }, [equity]);
 
   return (
-    <div className="w-full">
-      <div ref={chartContainerRef} className="w-full" />
+    <div className="w-full h-full relative">
+      <div ref={chartContainerRef} className="w-full h-full" />
+      <div className="absolute top-2 left-2 flex items-center gap-1 text-xs bg-white/80 dark:bg-gray-800/80 px-2 py-1 rounded">
+        <div className="w-3 h-3 bg-red-500/50"></div>
+        <span className="text-gray-700 dark:text-gray-300 font-medium">Drawdown (%)</span>
+      </div>
     </div>
   );
 }

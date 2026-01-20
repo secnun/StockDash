@@ -2,36 +2,32 @@
 
 import { useEffect, useRef } from 'react';
 import { createChart, UTCTimestamp, IChartApi } from 'lightweight-charts';
+import { getChartTheme, isDarkMode } from '@/lib/theme/chartTheme';
+import { OHLCV } from '@/types/backtest';
 
 interface EquityChartProps {
   equity: { time: number; value: number }[];
   initialCapital: number;
+  priceData?: OHLCV[];
 }
 
-// Drawdown 데이터 계산
-function calculateDrawdown(equity: { time: number; value: number }[]) {
+// MDD 지점 계산 (마커용)
+function findMDDPoints(equity: { time: number; value: number }[]) {
   let maxValue = equity[0]?.value || 0;
   let mddValue = 0;
   let mddPeakTime = equity[0]?.time || 0;
   let mddTroughTime = equity[0]?.time || 0;
 
-  const drawdownData = equity.map((point) => {
+  for (const point of equity) {
     if (point.value > maxValue) {
       maxValue = point.value;
     }
-    const drawdown = ((point.value - maxValue) / maxValue) * 100; // 음수 값
-
-    // MDD 추적
+    const drawdown = ((point.value - maxValue) / maxValue) * 100;
     if (drawdown < mddValue) {
       mddValue = drawdown;
       mddTroughTime = point.time;
     }
-
-    return {
-      time: point.time as UTCTimestamp,
-      value: drawdown,
-    };
-  });
+  }
 
   // MDD 고점 찾기
   let currentMax = equity[0]?.value || 0;
@@ -46,37 +42,30 @@ function calculateDrawdown(equity: { time: number; value: number }[]) {
     }
   }
 
-  return {
-    data: drawdownData,
-    mdd: mddValue,
-    mddPeakTime,
-    mddTroughTime,
-  };
+  return { mdd: mddValue, mddPeakTime, mddTroughTime };
 }
 
-export default function EquityChart({ equity, initialCapital }: EquityChartProps) {
+export default function EquityChart({ equity, initialCapital, priceData }: EquityChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
   useEffect(() => {
     if (!chartContainerRef.current || equity.length === 0) return;
 
-    const isDark = document.documentElement.classList.contains('dark');
-    const bgColor = isDark ? '#1f2937' : '#ffffff';
-    const textColor = isDark ? '#9ca3af' : '#333333';
-    const gridColor = isDark ? '#374151' : '#f0f0f0';
+    const isDark = isDarkMode();
+    const theme = getChartTheme(isDark);
+    const hasPriceData = priceData && priceData.length > 0;
 
-    // 차트 생성
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: chartContainerRef.current.clientHeight || 500,
+      height: chartContainerRef.current.clientHeight || 350,
       layout: {
-        background: { color: bgColor },
-        textColor: textColor,
+        background: { color: theme.background },
+        textColor: theme.text,
       },
       grid: {
-        vertLines: { color: gridColor },
-        horzLines: { color: gridColor },
+        vertLines: { color: theme.grid },
+        horzLines: { color: theme.grid },
       },
       timeScale: {
         timeVisible: true,
@@ -85,8 +74,17 @@ export default function EquityChart({ equity, initialCapital }: EquityChartProps
       rightPriceScale: {
         scaleMargins: {
           top: 0.1,
-          bottom: 0.4, // Drawdown 영역을 위한 공간
+          bottom: 0.1,
         },
+        minimumWidth: 80,
+      },
+      leftPriceScale: {
+        visible: hasPriceData,
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.1,
+        },
+        minimumWidth: 80,
       },
     });
 
@@ -98,18 +96,18 @@ export default function EquityChart({ equity, initialCapital }: EquityChartProps
       value: point.value,
     }));
 
-    // Drawdown 계산
-    const { data: drawdownData, mdd, mddPeakTime, mddTroughTime } = calculateDrawdown(equity);
+    // MDD 지점 계산
+    const { mdd, mddPeakTime, mddTroughTime } = findMDDPoints(equity);
 
     // Equity 곡선 (Baseline)
     const equitySeries = chart.addBaselineSeries({
       baseValue: { type: 'price', price: initialCapital },
-      topLineColor: '#22c55e',
-      topFillColor1: 'rgba(34, 197, 94, 0.28)',
-      topFillColor2: 'rgba(34, 197, 94, 0.05)',
-      bottomLineColor: '#ef4444',
-      bottomFillColor1: 'rgba(239, 68, 68, 0.05)',
-      bottomFillColor2: 'rgba(239, 68, 68, 0.28)',
+      topLineColor: theme.equity.positive,
+      topFillColor1: theme.equity.positiveFill1,
+      topFillColor2: theme.equity.positiveFill2,
+      bottomLineColor: theme.equity.negative,
+      bottomFillColor1: theme.equity.negativeFill1,
+      bottomFillColor2: theme.equity.negativeFill2,
       lineWidth: 2,
       priceScaleId: 'right',
       priceFormat: {
@@ -125,44 +123,40 @@ export default function EquityChart({ equity, initialCapital }: EquityChartProps
       {
         time: mddPeakTime as UTCTimestamp,
         position: 'aboveBar',
-        color: '#f97316',
+        color: theme.markers.mddPeak,
         shape: 'arrowDown',
         text: 'MDD Peak',
       },
       {
         time: mddTroughTime as UTCTimestamp,
         position: 'belowBar',
-        color: '#dc2626',
+        color: theme.markers.mddTrough,
         shape: 'arrowUp',
         text: `MDD ${mdd.toFixed(2)}%`,
       },
     ]);
 
-    // Drawdown 히스토그램 (좌측 스케일 사용)
-    const drawdownSeries = chart.addHistogramSeries({
-      color: '#ef4444',
-      priceScaleId: 'left',
-      priceFormat: {
-        type: 'custom',
-        formatter: (price: number) => `${price.toFixed(1)}%`,
-        minMove: 0.1,
-      },
-      crosshairMarkerVisible: true,
-      lastValueVisible: true,
-    });
+    // 가격 오버레이 (priceData가 있을 때만)
+    if (hasPriceData) {
+      const priceSeries = chart.addLineSeries({
+        priceScaleId: 'left',
+        color: theme.price.line,
+        lineWidth: 1,
+        lastValueVisible: true,
+        priceFormat: {
+          type: 'custom',
+          formatter: (price: number) => `$${price.toLocaleString('en-US', { maximumFractionDigits: 2 })}`,
+          minMove: 0.01,
+        },
+      });
 
-    // 좌측 스케일 설정 (Drawdown 표시, 하단에 배치)
-    chart.priceScale('left').applyOptions({
-      scaleMargins: {
-        top: 0.7, // 상단 70%는 Equity용
-        bottom: 0.05,
-      },
-      visible: true,
-    });
+      const priceLineData = priceData.map((d) => ({
+        time: d.time as UTCTimestamp,
+        value: d.close,
+      }));
+      priceSeries.setData(priceLineData);
+    }
 
-    drawdownSeries.setData(drawdownData);
-
-    // 차트 자동 피팅
     chart.timeScale().fitContent();
 
     // 반응형 처리
@@ -170,7 +164,7 @@ export default function EquityChart({ equity, initialCapital }: EquityChartProps
       if (chartContainerRef.current && chartRef.current) {
         chartRef.current.applyOptions({
           width: chartContainerRef.current.clientWidth,
-          height: chartContainerRef.current.clientHeight || 500,
+          height: chartContainerRef.current.clientHeight || 350,
         });
       }
     };
@@ -179,16 +173,18 @@ export default function EquityChart({ equity, initialCapital }: EquityChartProps
 
     // 다크모드 변경 감지
     const observer = new MutationObserver(() => {
-      const isDarkNow = document.documentElement.classList.contains('dark');
+      const isDarkNow = isDarkMode();
+      const newTheme = getChartTheme(isDarkNow);
+
       if (chartRef.current) {
         chartRef.current.applyOptions({
           layout: {
-            background: { color: isDarkNow ? '#1f2937' : '#ffffff' },
-            textColor: isDarkNow ? '#9ca3af' : '#333333',
+            background: { color: newTheme.background },
+            textColor: newTheme.text,
           },
           grid: {
-            vertLines: { color: isDarkNow ? '#374151' : '#f0f0f0' },
-            horzLines: { color: isDarkNow ? '#374151' : '#f0f0f0' },
+            vertLines: { color: newTheme.grid },
+            horzLines: { color: newTheme.grid },
           },
         });
       }
@@ -199,32 +195,16 @@ export default function EquityChart({ equity, initialCapital }: EquityChartProps
       attributeFilter: ['class'],
     });
 
-    // 클린업
     return () => {
       window.removeEventListener('resize', handleResize);
       observer.disconnect();
       chart.remove();
     };
-  }, [equity, initialCapital]);
+  }, [equity, initialCapital, priceData]);
 
   return (
     <div className="w-full h-full relative">
       <div ref={chartContainerRef} className="w-full h-full" />
-
-      {/* Equity 영역 라벨 */}
-      <div className="absolute top-2 left-2 flex items-center gap-1 text-xs bg-white/80 dark:bg-gray-800/80 px-2 py-1 rounded">
-        <div className="w-3 h-0.5 bg-green-500"></div>
-        <span className="text-gray-700 dark:text-gray-300 font-medium">Equity ($)</span>
-      </div>
-
-      {/* 영역 구분선 */}
-      <div className="absolute left-0 right-0 top-[65%] border-t border-dashed border-gray-400 dark:border-gray-500 pointer-events-none" />
-
-      {/* Drawdown 영역 라벨 */}
-      <div className="absolute top-[67%] left-2 flex items-center gap-1 text-xs bg-white/80 dark:bg-gray-800/80 px-2 py-1 rounded">
-        <div className="w-3 h-3 bg-red-500/50"></div>
-        <span className="text-gray-700 dark:text-gray-300 font-medium">Drawdown (%)</span>
-      </div>
     </div>
   );
 }

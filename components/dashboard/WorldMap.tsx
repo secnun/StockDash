@@ -159,22 +159,29 @@ const WorldMap = () => {
 
     const path = d3.geoPath().projection(projection);
 
-    // 툴팁
+    // 툴팁 (다크모드에 따라 색상 동적 적용)
+    const tooltipBg = isDark ? 'rgba(31, 41, 55, 0.95)' : 'rgba(0, 0, 0, 0.85)';
+    const tooltipColor = isDark ? '#f3f4f6' : 'white';
+
     const tooltip = d3.select("body")
       .append("div")
       .attr("class", "world-map-tooltip")
       .style("position", "absolute")
       .style("opacity", 0)
-      .style("background", "rgba(0, 0, 0, 0.8)")
-      .style("color", "white")
+      .style("background", tooltipBg)
+      .style("color", tooltipColor)
       .style("padding", "8px 12px")
       .style("border-radius", "4px")
       .style("font-size", "12px")
       .style("pointer-events", "none")
       .style("z-index", 1000);
 
+    // AbortController for cleanup
+    const abortController = new AbortController();
+
     // 지도 데이터 로드
-    d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
+    d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json", { signal: abortController.signal })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((data: any) => {
         setLoading(false);
 
@@ -204,6 +211,7 @@ const WorldMap = () => {
         });
 
         // TopoJSON을 GeoJSON으로 변환
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const countries = topojson.feature(data, data.objects.countries) as any;
 
         // 국가 이름 매핑
@@ -237,6 +245,7 @@ const WorldMap = () => {
           .attr("fill", isDark ? "#374151" : "#e5e7eb")
           .attr("stroke", isDark ? "#6b7280" : "#9ca3af")
           .attr("stroke-width", 0.5)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .on("mouseover", function(event: any, d: any) {
             const countryName = d.properties.name || "Unknown";
             const countryCode = countryNameMap[countryName];
@@ -330,6 +339,7 @@ const WorldMap = () => {
               .attr("opacity", 0.7)
               .attr("stroke-dasharray", "5, 5")
               .style("cursor", "pointer")
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               .on("mouseover", function(event: any) {
                 d3.select(this).attr("opacity", 1);
                 tooltip
@@ -367,6 +377,7 @@ const WorldMap = () => {
           .attr("stroke", "white")
           .attr("stroke-width", 2)
           .style("cursor", "pointer")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .on("mouseover", function(event: any, d: City) {
             const m2Info = m2Data[d.country];
             tooltip
@@ -485,12 +496,15 @@ const WorldMap = () => {
           .text("* 굵기 = 자금 이동 규모");
       })
       .catch(error => {
+        // AbortError는 정상적인 클린업이므로 무시
+        if (error.name === 'AbortError') return;
         console.error("Error loading map data:", error);
         setLoading(false);
       });
 
     // 클린업
     return () => {
+      abortController.abort();
       tooltip.remove();
     };
   }, [isDark, mounted]);

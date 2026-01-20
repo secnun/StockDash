@@ -1,4 +1,4 @@
-import { OHLCV, Trade, BacktestResult, Signal } from '@/types/backtest';
+import { OHLCV, Trade, Signal } from '@/types/backtest';
 
 /**
  * 백테스트 엔진 - 매매 신호를 실행하고 포지션을 관리

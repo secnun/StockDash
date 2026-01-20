@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getAllStrategies, getStrategy } from '@/lib/strategies';
 import { loadCSVFromFile } from '@/lib/backtest/dataLoader';
-import { BacktestResult, OHLCV } from '@/types/backtest';
+import { BacktestResult, OHLCV, ParameterValue } from '@/types/backtest';
 import EquityChart from '@/components/backtest/Charts/EquityChart';
+import DrawdownChart from '@/components/backtest/Charts/DrawdownChart';
 import { backestResultToCSV, downloadCSV, generateFilename } from '@/lib/backtest/csvExport';
 
 interface Ticker {
@@ -19,7 +20,7 @@ export default function BacktestPage() {
   const [initialCapitalStr, setInitialCapitalStr] = useState('10000');
   const [tickers, setTickers] = useState<Ticker[]>([]);
   const [selectedTicker, setSelectedTicker] = useState('');
-  const [parameters, setParameters] = useState<Record<string, any>>({});
+  const [parameters, setParameters] = useState<Record<string, ParameterValue>>({});
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [chartData, setChartData] = useState<OHLCV[]>([]);
   const [loading, setLoading] = useState(false);
@@ -79,31 +80,31 @@ export default function BacktestPage() {
     : null;
 
   // 전략 선택 시 기본 파라미터 설정
-  const handleStrategyChange = (strategyId: string) => {
+  const handleStrategyChange = useCallback((strategyId: string) => {
     setSelectedStrategyId(strategyId);
     setResult(null);
     setError(null);
 
     const strategy = getStrategy(strategyId);
     if (strategy) {
-      const defaultParams: Record<string, any> = {};
+      const defaultParams: Record<string, ParameterValue> = {};
       strategy.parameters.forEach((param) => {
         defaultParams[param.key] = param.default;
       });
       setParameters(defaultParams);
     }
-  };
+  }, []);
 
   // 파라미터 변경
-  const handleParameterChange = (key: string, value: any) => {
+  const handleParameterChange = useCallback((key: string, value: ParameterValue) => {
     setParameters((prev) => ({
       ...prev,
       [key]: value,
     }));
-  };
+  }, []);
 
   // 백테스트 실행
-  const runBacktest = async () => {
+  const runBacktest = useCallback(async () => {
     if (!selectedStrategy) {
       setError('전략을 선택해주세요');
       return;
@@ -153,7 +154,15 @@ export default function BacktestPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedStrategy, tickers, selectedTicker, startDate, endDate, initialCapitalStr, parameters, applyFee]);
+
+  // 성과 지표 카드 데이터 메모이제이션
+  const metricCards = useMemo(() => [
+    { label: '총 수익률', value: result?.metrics.totalReturn.toFixed(2) || '-', unit: '%', color: result && result.metrics.totalReturn >= 0 ? 'text-green-600' : 'text-red-600' },
+    { label: 'CAGR', value: result?.metrics.cagr.toFixed(2) || '-', unit: '%', color: result && result.metrics.cagr >= 0 ? 'text-green-600' : 'text-red-600' },
+    { label: 'MDD', value: result?.metrics.mdd.toFixed(2) || '-', unit: '%', color: 'text-red-600' },
+    { label: '거래', value: result?.metrics.totalTrades.toString() || '-', unit: '회', color: 'text-gray-600 dark:text-gray-300' },
+  ], [result]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -278,7 +287,7 @@ export default function BacktestPage() {
                     {param.type === 'number' && (
                       <input
                         type="number"
-                        value={parameters[param.key] ?? param.default}
+                        value={(parameters[param.key] ?? param.default) as number | string}
                         onChange={(e) => handleParameterChange(param.key, e.target.value === '' ? '' : Number(e.target.value))}
                         min={param.min}
                         max={param.max}
@@ -295,14 +304,8 @@ export default function BacktestPage() {
 
         {/* 성과 지표 */}
         <div className="flex gap-2 mb-4">
-          <div className="grid grid-cols-5 gap-2 flex-1">
-            {[
-              { label: '총 수익률', value: result?.metrics.totalReturn.toFixed(2) || '-', unit: '%', color: result && result.metrics.totalReturn >= 0 ? 'text-green-600' : 'text-red-600' },
-              { label: 'CAGR', value: result?.metrics.cagr.toFixed(2) || '-', unit: '%', color: result && result.metrics.cagr >= 0 ? 'text-green-600' : 'text-red-600' },
-              { label: 'MDD', value: result?.metrics.mdd.toFixed(2) || '-', unit: '%', color: 'text-red-600' },
-              { label: '승률', value: result?.metrics.winRate.toFixed(2) || '-', unit: '%', color: 'text-blue-600' },
-              { label: '거래', value: result?.metrics.totalTrades.toString() || '-', unit: '회', color: 'text-gray-600 dark:text-gray-300' },
-            ].map((metric) => (
+          <div className="grid grid-cols-4 gap-2 flex-1">
+            {metricCards.map((metric) => (
               <div key={metric.label} className="bg-white dark:bg-gray-800 rounded-lg shadow p-3">
                 <div className="text-xs text-gray-500 dark:text-gray-400">{metric.label}</div>
                 <div className={`text-lg font-bold ${metric.color}`}>
@@ -340,15 +343,41 @@ export default function BacktestPage() {
 
         {/* 차트 영역 */}
         {result && chartData.length > 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">자산 추이 & Drawdown</h2>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                ${result.equity[0].value.toFixed(0)} → ${result.equity[result.equity.length - 1].value.toFixed(0)}
+          <div className="space-y-4">
+            {/* Equity & Price 차트 */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+              <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Equity & Price</h2>
+                  <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                    <span className="flex items-center gap-1">
+                      <span className="w-3 h-0.5 bg-green-500 inline-block"></span> Equity
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-3 h-0.5 bg-indigo-500 inline-block"></span> Price
+                    </span>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  Value: ${result.equity[0].value.toFixed(0)} → ${result.equity[result.equity.length - 1].value.toFixed(0)}
+                </div>
+              </div>
+              <div className="h-[350px]">
+                <EquityChart equity={result.equity} initialCapital={Number(initialCapitalStr) || 10000} priceData={chartData} />
               </div>
             </div>
-            <div className="h-[500px]">
-              <EquityChart equity={result.equity} initialCapital={Number(initialCapitalStr) || 10000} />
+
+            {/* 드로우다운 차트 */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+              <div className="flex justify-between items-center mb-2">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Drawdown</h2>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  MDD: {result.metrics.mdd.toFixed(2)}%
+                </div>
+              </div>
+              <div className="h-[150px]">
+                <DrawdownChart equity={result.equity} />
+              </div>
             </div>
           </div>
         ) : (

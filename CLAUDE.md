@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-StockDash는 주식 시스템 트레이딩 백테스팅 및 글로벌 M2 자금 흐름 시각화 플랫폼입니다.
+StockDash는 주식 시스템 트레이딩 백테스팅 플랫폼입니다. (v0.2)
 
 ## Commands
 
@@ -23,38 +23,37 @@ npm run lint     # ESLint 실행
 
 ### Key Directories
 ```
-app/                    # Next.js App Router 페이지
-├── page.tsx           # 대시보드 (M2 자금 흐름 지도)
-├── backtest/page.tsx  # 백테스팅 페이지
+app/
+├── page.tsx              # 대시보드 (M2 자금 흐름 지도)
+├── backtest/page.tsx     # 백테스팅 페이지 (메인 기능)
+└── api/tickers/route.ts  # 티커 목록 API
+
 lib/
-├── backtest/          # 백테스트 핵심 로직
-│   ├── engine.ts      # BacktestEngine 클래스
-│   ├── metrics.ts     # 성과 지표 계산 (CAGR, MDD, 샤프비율)
-│   └── dataLoader.ts  # CSV 파싱 및 로드
-├── strategies/        # 매매 전략 구현
-│   ├── index.ts       # 전략 레지스트리
-│   ├── maCross.ts     # 이동평균 크로스
-│   ├── rsi.ts         # RSI
-│   ├── bollinger.ts   # 볼린저 밴드
-│   └── macd.ts        # MACD
+├── backtest/
+│   ├── engine.ts         # BacktestEngine 클래스 (매매 실행)
+│   ├── metrics.ts        # 성과 지표 (CAGR, MDD, Sharpe, 승률)
+│   ├── dataLoader.ts     # CSV 파싱 및 로드
+│   └── csvExport.ts      # 결과 CSV 내보내기
+└── strategies/           # 매매 전략 (Git 제외, 비공개)
+    ├── index.ts          # 전략 레지스트리
+    └── ddeolsapro*.ts    # 떨사오팔 전략들
+
 components/
-├── backtest/Charts/   # PriceChart, EquityChart, DrawdownChart
-└── dashboard/         # WorldMap (D3.js 세계지도)
-types/backtest.ts      # TypeScript 인터페이스 (OHLCV, Trade, Strategy 등)
-public/data/           # CSV 데이터 파일
-├── stocks/us/{ticker}/1d_{YYYYMMDD}.csv  # 미국 주식 (SOXL, TQQQ 등)
-└── crypto/            # 암호화폐 데이터
+├── backtest/Charts/
+│   └── EquityChart.tsx   # 자산 추이 + Drawdown 차트
+└── dashboard/
+    └── WorldMap.tsx      # D3.js 세계지도
+
+types/backtest.ts         # TypeScript 인터페이스 (OHLCV, Trade, Strategy)
+public/data/              # CSV 데이터 (Git 제외)
 ```
 
-### Strategy Plugin Pattern
+### Data Flow
+```
+CSV 로드 → parseCSV() → Strategy.execute() → calculateMetrics() → 차트 렌더링
+```
 
-새 전략 추가 방법:
-1. `lib/strategies/_TEMPLATE.md` 참고하여 전략 설계
-2. `lib/strategies/새전략.ts`에 Strategy 인터페이스 구현
-3. `lib/strategies/index.ts`의 strategies 객체에 등록
-4. UI 드롭다운에 자동 노출
-
-Strategy 인터페이스 핵심:
+### Strategy Interface
 ```typescript
 interface Strategy {
   id: string;
@@ -65,13 +64,20 @@ interface Strategy {
 }
 ```
 
-### Data Flow
-CSV 로드 → parseCSV() → Strategy.execute() → BacktestEngine 실행 → calculateMetrics() → 차트 렌더링
-
 ### Path Alias
-`@/*`는 프로젝트 루트를 가리킴 (예: `@/lib/backtest/engine`)
+`@/*` → 프로젝트 루트 (예: `@/lib/backtest/engine`)
 
-### Excluded Directories
+## Excluded Directories
 
-다음 디렉토리는 사용자가 직접 관리하며, 명시적 요청 없이 생성/수정/삭제하지 않음:
-- `docs/` - 사용자 전용 문서 및 전략 메모
+다음 디렉토리는 `.gitignore`에 포함되어 있으며, 명시적 요청 없이 생성/수정/삭제하지 않음:
+
+| 디렉토리 | 용도 |
+|---------|------|
+| `docs/` | 사용자 전용 문서 및 전략 메모 |
+| `public/data/` | 시세 데이터 (용량/저작권) |
+| `lib/strategies/` | 매매 전략 로직 (비공개) |
+
+## Future Plans
+
+- 딥마이닝: 파라미터 그리드 서치 (Web Workers 병렬 처리)
+- 백엔드 확장 시 전략 팩토리 패턴 리팩토링 예정

@@ -40,16 +40,19 @@ export interface PerformanceMetrics {
   totalTrades: number; // 총 거래 횟수
 }
 
+// 파라미터 값 타입
+export type ParameterValue = number | string | boolean;
+
 // 전략 파라미터 정의
 export interface ParameterDefinition {
   key: string;
   label: string;
   type: 'number' | 'select' | 'date';
-  default: any;
+  default: ParameterValue;
   min?: number;
   max?: number;
   step?: number;
-  options?: { label: string; value: any }[];
+  options?: { label: string; value: ParameterValue }[];
 }
 
 // 전략 인터페이스
@@ -58,7 +61,7 @@ export interface Strategy {
   name: string;
   description: string;
   parameters: ParameterDefinition[];
-  execute: (data: OHLCV[], params: Record<string, any>) => BacktestResult;
+  execute: (data: OHLCV[], params: Record<string, ParameterValue>) => BacktestResult;
 }
 
 // 백테스트 설정
@@ -68,5 +71,5 @@ export interface BacktestConfig {
   startDate?: string;
   endDate?: string;
   initialCapital: number;
-  parameters: Record<string, any>;
+  parameters: Record<string, ParameterValue>;
 }

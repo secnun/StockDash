@@ -39,6 +39,7 @@ yarn-error.log*
 # project specific - excluded from version control
 /docs
 /public/data
+/lib/strategies
 GIT_WORKFLOW.md
 
 # typescript
@@ -47,3 +48,4 @@ next-env.d.ts
 
 # Claude Code
 /.claude/
+CLAUDE.md
