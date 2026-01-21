@@ -125,3 +125,20 @@ export function isDarkMode(): boolean {
   if (typeof document === 'undefined') return false;
   return document.documentElement.classList.contains('dark');
 }
+
+/**
+ * Compare 모드용 전략별 색상 팔레트
+ */
+export const STRATEGY_COLORS = [
+  '#22c55e', // 녹색
+  '#3b82f6', // 파랑
+  '#f59e0b', // 주황
+  '#ef4444', // 빨강
+] as const;
+
+/**
+ * 인덱스에 해당하는 전략 색상 반환
+ */
+export function getStrategyColor(index: number): string {
+  return STRATEGY_COLORS[index % STRATEGY_COLORS.length];
+}

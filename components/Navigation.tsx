@@ -26,7 +26,7 @@ export default function Navigation() {
                 href="/backtest"
                 className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400"
               >
-                백테스팅
+                퀀트투자
               </Link>
             </div>
           </div>

@@ -73,3 +73,26 @@ export interface BacktestConfig {
   initialCapital: number;
   parameters: Record<string, ParameterValue>;
 }
+
+// Compare 모드용 타입
+export interface SelectedStrategy {
+  id: string;           // 고유 키 (uuid)
+  strategyId: string;   // 전략 ID
+  params: Record<string, ParameterValue>;
+}
+
+// 다중 Equity 차트용 데이터
+export interface StrategyEquityData {
+  strategyId: string;
+  strategyName: string;
+  equity: { time: number; value: number }[];
+  color: string;
+}
+
+// Compare 모드 결과
+export interface CompareResult {
+  strategyId: string;
+  strategyName: string;
+  result: BacktestResult;
+  color: string;
+}
