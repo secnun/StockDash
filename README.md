@@ -17,8 +17,8 @@ StockDash는 다양한 매매 전략을 백테스트하고 성과를 분석할 �
 
 | 분류 | 기술 |
 |------|------|
-| 프레임워크 | Next.js 16, React 19 |
-| 언어 | TypeScript 5 |
+| 프론트엔드 | Next.js 16, React 19, TypeScript 5 |
+| 백엔드 | Python FastAPI |
 | 스타일링 | Tailwind CSS 4 |
 | 차트 | Lightweight Charts (TradingView) |
 
@@ -27,24 +27,28 @@ StockDash는 다양한 매매 전략을 백테스트하고 성과를 분석할 �
 ### 1. 의존성 설치
 
 ```bash
-npm install
+# Frontend
+cd frontend && npm install
+
+# Backend
+cd backend && pip install -r requirements.txt
 ```
 
 ### 2. 데이터 준비
 
-프로젝트는 `public/data/` 폴더의 CSV 데이터를 사용합니다. 이 폴더는 Git에서 제외되어 있으므로 직접 생성해야 합니다.
+프로젝트는 루트의 `data/` 폴더에서 CSV 데이터를 로드합니다. 이 폴더는 Git에서 제외되어 있으므로 직접 생성해야 합니다.
 
 #### 폴더 구조 생성
 
 ```bash
-mkdir -p public/data/stocks/us/{티커명}
+mkdir -p data/stocks/us/{티커명}
 ```
 
 예시:
 ```bash
-mkdir -p public/data/stocks/us/soxl
-mkdir -p public/data/stocks/us/tqqq
-mkdir -p public/data/stocks/us/spy
+mkdir -p data/stocks/us/soxl
+mkdir -p data/stocks/us/tqqq
+mkdir -p data/stocks/us/spy
 ```
 
 #### CSV 파일 형식
@@ -73,7 +77,13 @@ time,open,high,low,close,volume
 ### 3. 개발 서버 실행
 
 ```bash
-npm run dev
+# Backend (터미널 1)
+cd backend && uvicorn app.main:app --reload
+# http://localhost:8000
+
+# Frontend (터미널 2)
+cd frontend && npm run dev
+# http://localhost:3000
 ```
 
 브라우저에서 [http://localhost:3000](http://localhost:3000) 접속
@@ -88,17 +98,17 @@ npm run dev
 ## 프로젝트 구조
 
 ```
-├── app/                    # Next.js 페이지
-│   ├── api/tickers/        # 티커 목록 API
-│   ├── backtest/           # 백테스트 페이지
-│   └── page.tsx            # 메인 페이지
-├── components/             # React 컴포넌트
-│   └── backtest/Charts/    # 차트 컴포넌트
-├── lib/                    # 비즈니스 로직
-│   ├── backtest/           # 백테스트 엔진
-│   └── strategies/         # 전략 구현
-├── types/                  # TypeScript 타입
-└── public/data/            # CSV 데이터 (Git 제외)
+├── data/                       # CSV 시세 데이터 (Git 제외)
+│   └── stocks/us/{ticker}/     # 티커별 OHLCV 데이터
+├── frontend/                   # Next.js 프론트엔드
+│   ├── app/                    # 페이지 및 API 라우트
+│   ├── components/             # React 컴포넌트
+│   ├── lib/                    # 유틸리티 함수
+│   └── types/                  # TypeScript 타입
+└── backend/                    # Python FastAPI 백엔드
+    ├── app/api/                # API 엔드포인트
+    ├── app/services/           # 데이터 로딩 서비스
+    └── app/strategies/         # 매매 전략 (비공개)
 ```
 
 ## Git에서 제외된 항목
@@ -108,23 +118,24 @@ npm run dev
 | 항목 | 이유 |
 |------|------|
 | `/docs` | 개인 문서 및 전략 메모 |
-| `/public/data` | 시세 데이터 (용량/저작권) |
-| `/lib/strategies` | 매매 전략 로직 (비공개) |
+| `/data` | 시세 데이터 (용량/저작권) |
+| `/backend/app/strategies` | 매매 전략 로직 (비공개) |
 | `/.claude/` | Claude Code 설정 |
 
 ## 스크립트
 
 ```bash
-npm run dev      # 개발 서버 실행
-npm run build    # 프로덕션 빌드
-npm run start    # 프로덕션 서버 실행
-npm run lint     # ESLint 검사
+# Frontend
+cd frontend && npm run dev      # 개발 서버 실행 (localhost:3000)
+cd frontend && npm run build    # 프로덕션 빌드
+cd frontend && npm run lint     # ESLint 검사
+
+# Backend
+cd backend && uvicorn app.main:app --reload  # 개발 서버 (localhost:8000)
 ```
 
 ## 전략 추가 방법
 
-1. `lib/strategies/` 폴더에 새 전략 파일 생성
-2. `Strategy` 인터페이스 구현
-3. `lib/strategies/index.ts`에 등록
-
-참고: `lib/strategies/_TEMPLATE.md`
+1. `backend/app/strategies/` 폴더에 새 전략 파일 생성
+2. `BaseStrategy` 클래스 상속 및 구현
+3. `backend/app/strategies/__init__.py`에 등록

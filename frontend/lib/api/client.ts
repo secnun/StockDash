@@ -7,7 +7,7 @@
  * - Strategy listing
  */
 
-import { BacktestResult, ParameterValue } from '@/types/backtest';
+import { BacktestResult, OHLCV, ParameterValue } from '@/types/backtest';
 
 // Backend API base URL - can be overridden via environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -45,7 +45,13 @@ export interface BacktestResponse {
     sharpeRatio: number;
     totalTrades: number;
   };
+  priceData: OHLCV[];
   executionTime: number;
+}
+
+export interface DateRangeResponse {
+  min: string;
+  max: string;
 }
 
 export interface ParamRange {
@@ -80,6 +86,19 @@ export interface GridSearchResultItem {
 export interface GridSearchDone {
   totalTime: number;
   resultsCount: number;
+}
+
+export interface RankedResultItem {
+  rank: number;
+  params: Record<string, ParameterValue>;
+  metrics: BacktestResponse['metrics'];
+  compositeScore: number;
+}
+
+export interface GridSearchRankings {
+  byReturn: RankedResultItem[];
+  byMdd: RankedResultItem[];
+  byComposite: RankedResultItem[];
 }
 
 export interface StrategyInfo {
@@ -137,6 +156,18 @@ export async function fetchStrategy(strategyId: string): Promise<StrategyInfo> {
 }
 
 /**
+ * Get date range for a ticker
+ */
+export async function fetchDateRange(tickerId: string): Promise<DateRangeResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/backtest/date-range/${tickerId}`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || 'Failed to fetch date range');
+  }
+  return response.json();
+}
+
+/**
  * Run single backtest via backend API
  */
 export async function runBacktestAPI(request: BacktestRequest): Promise<BacktestResult> {
@@ -160,6 +191,7 @@ export async function runBacktestAPI(request: BacktestRequest): Promise<Backtest
     trades: data.trades,
     equity: data.equity,
     metrics: data.metrics,
+    priceData: data.priceData,
   };
 }
 
@@ -169,6 +201,7 @@ export async function runBacktestAPI(request: BacktestRequest): Promise<Backtest
 export interface GridSearchCallbacks {
   onProgress?: (progress: GridSearchProgress) => void;
   onResult?: (result: GridSearchResultItem) => void;
+  onRankings?: (rankings: GridSearchRankings) => void;
   onDone?: (done: GridSearchDone) => void;
   onError?: (error: Error) => void;
 }
@@ -229,6 +262,9 @@ export async function runGridSearchAPI(
                 case 'result':
                   callbacks.onResult?.(parsed as GridSearchResultItem);
                   break;
+                case 'rankings':
+                  callbacks.onRankings?.(parsed as GridSearchRankings);
+                  break;
                 case 'done':
                   callbacks.onDone?.(parsed as GridSearchDone);
                   break;
@@ -257,6 +293,7 @@ export const apiClient = {
   backtest: {
     run: runBacktestAPI,
     gridSearch: runGridSearchAPI,
+    dateRange: fetchDateRange,
   },
 };
 

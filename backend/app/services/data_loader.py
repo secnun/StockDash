@@ -5,53 +5,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from app.models.backtest import OHLCV
-
-
-def parse_csv(csv_text: str) -> list[OHLCV]:
-    """
-    Parse CSV text to OHLCV data.
-
-    Args:
-        csv_text: Raw CSV content
-
-    Returns:
-        List of OHLCV objects
-    """
-    lines = csv_text.strip().split("\n")
-
-    # Check if first line is header
-    first_line_lower = lines[0].lower()
-    has_header = "time" in first_line_lower or "open" in first_line_lower
-    start_index = 1 if has_header else 0
-
-    data: list[OHLCV] = []
-
-    for line in lines[start_index:]:
-        line = line.strip()
-        if not line:
-            continue
-
-        values = [v.strip() for v in line.split(",")]
-        if len(values) < 6:
-            continue
-
-        try:
-            ohlcv = OHLCV(
-                time=int(float(values[0])),
-                open=float(values[1]),
-                high=float(values[2]),
-                low=float(values[3]),
-                close=float(values[4]),
-                volume=float(values[5]),
-            )
-            if not np.isnan(ohlcv.close):
-                data.append(ohlcv)
-        except (ValueError, IndexError):
-            continue
-
-    return data
-
 
 def load_csv_pandas(file_path: Path) -> pd.DataFrame:
     """

@@ -28,6 +28,7 @@ export interface BacktestResult {
   trades: Trade[];
   equity: { time: number; value: number }[];
   metrics: PerformanceMetrics;
+  priceData?: OHLCV[]; // 백엔드 응답에 포함된 가격 데이터
 }
 
 // 성과 지표

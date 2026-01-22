@@ -71,9 +71,17 @@ class BacktestResponse(BaseModel):
     trades: list[Trade]
     equity: list[EquityPoint]
     metrics: PerformanceMetrics
+    price_data: list[OHLCV] = Field(default_factory=list, alias="priceData")
     execution_time: float = Field(alias="executionTime")
 
     model_config = {"populate_by_name": True}
+
+
+class DateRangeResponse(BaseModel):
+    """Response model for ticker date range."""
+
+    min: str
+    max: str
 
 
 class ParamRange(BaseModel):
@@ -120,5 +128,26 @@ class GridSearchDone(BaseModel):
 
     total_time: float = Field(alias="totalTime")
     results_count: int = Field(alias="resultsCount")
+
+    model_config = {"populate_by_name": True}
+
+
+class RankedResultItem(BaseModel):
+    """Single result item with composite score."""
+
+    rank: int
+    params: dict[str, float | int | str | bool]
+    metrics: PerformanceMetrics
+    composite_score: float = Field(alias="compositeScore")
+
+    model_config = {"populate_by_name": True}
+
+
+class GridSearchRankings(BaseModel):
+    """Multiple ranking results from grid search."""
+
+    by_return: list[RankedResultItem] = Field(alias="byReturn")
+    by_mdd: list[RankedResultItem] = Field(alias="byMdd")
+    by_composite: list[RankedResultItem] = Field(alias="byComposite")
 
     model_config = {"populate_by_name": True}

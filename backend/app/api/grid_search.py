@@ -15,15 +15,14 @@ from app.core.config import get_settings
 from app.models.backtest import (
     GridSearchDone,
     GridSearchProgress,
+    GridSearchRankings,
     GridSearchRequest,
     GridSearchResultItem,
     PerformanceMetrics,
+    RankedResultItem,
 )
 from app.services.data_loader import date_to_timestamp, filter_by_date_range, load_csv_pandas
-from app.strategies.base import StrategyRegistry
-
-# Import strategies
-from app.strategies import sample_sma  # noqa: F401
+from app.strategies import StrategyRegistry  # Import from __init__ to trigger strategy registration
 
 router = APIRouter(prefix="/api/backtest", tags=["backtest"])
 
@@ -35,6 +34,7 @@ def _run_single_backtest(
     end_time: int | None,
     initial_capital: float,
     params: dict[str, float | int | str | bool],
+    apply_fee: bool = True,
 ) -> dict | None:
     """
     Run a single backtest (for multiprocessing).
@@ -42,10 +42,9 @@ def _run_single_backtest(
     This function runs in a separate process.
     """
     try:
-        # Re-import in worker process
+        # Re-import in worker process (strategies register on import)
         from app.services.data_loader import filter_by_date_range, load_csv_pandas
-        from app.strategies import sample_sma  # noqa: F401
-        from app.strategies.base import StrategyRegistry
+        from app.strategies import StrategyRegistry  # noqa: F401
 
         strategy = StrategyRegistry.get(strategy_id)
         if strategy is None:
@@ -57,7 +56,9 @@ def _run_single_backtest(
         if len(df) == 0:
             return None
 
-        result = strategy.execute(df, params, initial_capital)
+        # Merge applyFee into params
+        full_params = {**params, "applyFee": apply_fee}
+        result = strategy.execute(df, full_params, initial_capital)
 
         return {
             "params": params,
@@ -165,6 +166,7 @@ async def grid_search(request: GridSearchRequest) -> EventSourceResponse:
                         end_time,
                         request.initial_capital,
                         params,
+                        request.apply_fee,
                     )
                     for params in batch
                 ]
@@ -189,15 +191,51 @@ async def grid_search(request: GridSearchRequest) -> EventSourceResponse:
                     "data": progress.model_dump_json(),
                 }
 
-        # Sort by total return (descending)
-        results.sort(
+        # Calculate composite score for each result: totalReturn / abs(MDD)
+        # Higher composite score = better risk-adjusted return
+        for r in results:
+            mdd = abs(r["metrics"].get("mdd", 1))
+            total_return = r["metrics"].get("totalReturn", 0)
+            r["compositeScore"] = total_return / mdd if mdd > 0 else 0
+
+        # Sort by total return (descending) - primary ranking
+        results_by_return = sorted(
+            results,
             key=lambda x: x["metrics"].get("totalReturn", 0),
             reverse=True,
         )
 
-        # Send top N results
-        top_results = results[: request.top_n]
-        for rank, result in enumerate(top_results, 1):
+        # Sort by MDD (ascending - lower is better)
+        results_by_mdd = sorted(
+            results,
+            key=lambda x: abs(x["metrics"].get("mdd", 100)),
+        )
+
+        # Sort by composite score (descending)
+        results_by_composite = sorted(
+            results,
+            key=lambda x: x.get("compositeScore", 0),
+            reverse=True,
+        )
+
+        top_n = request.top_n
+
+        # Helper to create ranked items
+        def create_ranked_items(sorted_results: list[dict], limit: int) -> list[RankedResultItem]:
+            items = []
+            for rank, r in enumerate(sorted_results[:limit], 1):
+                items.append(
+                    RankedResultItem(
+                        rank=rank,
+                        params=r["params"],
+                        metrics=PerformanceMetrics(**r["metrics"]),
+                        composite_score=round(r.get("compositeScore", 0), 4),
+                    )
+                )
+            return items
+
+        # Send legacy results (by total return) for backward compatibility
+        for rank, result in enumerate(results_by_return[:top_n], 1):
             result_item = GridSearchResultItem(
                 rank=rank,
                 params=result["params"],
@@ -208,11 +246,22 @@ async def grid_search(request: GridSearchRequest) -> EventSourceResponse:
                 "data": result_item.model_dump_json(by_alias=True),
             }
 
+        # Send 3-type rankings
+        rankings = GridSearchRankings(
+            by_return=create_ranked_items(results_by_return, top_n),
+            by_mdd=create_ranked_items(results_by_mdd, top_n),
+            by_composite=create_ranked_items(results_by_composite, top_n),
+        )
+        yield {
+            "event": "rankings",
+            "data": rankings.model_dump_json(by_alias=True),
+        }
+
         # Send completion event
         total_time = (time.perf_counter() - start_time_ms) * 1000
         done = GridSearchDone(
             total_time=round(total_time, 2),
-            results_count=len(top_results),
+            results_count=len(results_by_return[:top_n]),
         )
         yield {
             "event": "done",

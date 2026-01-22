@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
-import { getAllStrategies, getStrategy } from '@/lib/strategies';
-import { loadCSVFromFile } from '@/lib/backtest/dataLoader';
-import { BacktestResult, OHLCV, ParameterValue, Strategy } from '@/types/backtest';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { BacktestResult, OHLCV, ParameterValue } from '@/types/backtest';
+import { StrategyInfo } from '@/lib/api/client';
 import EquityChart from '@/components/backtest/Charts/EquityChart';
 import DrawdownChart from '@/components/backtest/Charts/DrawdownChart';
 import { backestResultToCSV, downloadCSV, generateFilename } from '@/lib/backtest/csvExport';
+import { useBackendBacktest, ExecutionMode } from '@/lib/backtest/useBackendBacktest';
 
 interface Ticker {
   id: string;
@@ -31,7 +31,7 @@ export default function BasicBacktest({
   endDate,
   applyFee,
 }: BasicBacktestProps) {
-  const strategies = getAllStrategies();
+  const [strategies, setStrategies] = useState<StrategyInfo[]>([]);
   const [selectedStrategyId, setSelectedStrategyId] = useState('');
   const [parameters, setParameters] = useState<Record<string, ParameterValue>>({});
   const [result, setResult] = useState<BacktestResult | null>(null);
@@ -39,9 +39,23 @@ export default function BasicBacktest({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const selectedStrategy = selectedStrategyId
-    ? getStrategy(selectedStrategyId)
-    : null;
+  // Backend integration hook
+  const {
+    mode: executionMode,
+    isBackendAvailable,
+    error: backendError,
+    runBacktest: runBacktestAPI,
+    getStrategies,
+  } = useBackendBacktest();
+
+  // Load strategies from backend
+  useEffect(() => {
+    if (isBackendAvailable) {
+      getStrategies().then(setStrategies).catch(console.error);
+    }
+  }, [isBackendAvailable, getStrategies]);
+
+  const selectedStrategy = strategies.find(s => s.id === selectedStrategyId);
 
   // 전략 선택 시 기본 파라미터 설정
   const handleStrategyChange = useCallback((strategyId: string) => {
@@ -49,7 +63,7 @@ export default function BasicBacktest({
     setResult(null);
     setError(null);
 
-    const strategy = getStrategy(strategyId);
+    const strategy = strategies.find(s => s.id === strategyId);
     if (strategy) {
       const defaultParams: Record<string, ParameterValue> = {};
       strategy.parameters.forEach((param) => {
@@ -57,7 +71,7 @@ export default function BasicBacktest({
       });
       setParameters(defaultParams);
     }
-  }, []);
+  }, [strategies]);
 
   // 파라미터 변경
   const handleParameterChange = useCallback((key: string, value: ParameterValue) => {
@@ -67,15 +81,19 @@ export default function BasicBacktest({
     }));
   }, []);
 
-  // 백테스트 실행
+  // 백테스트 실행 (백엔드 전용)
   const runBacktest = useCallback(async () => {
     if (!selectedStrategy) {
       setError('전략을 선택해주세요');
       return;
     }
 
-    const ticker = tickers.find(t => t.id === selectedTicker);
-    if (!ticker) {
+    if (!isBackendAvailable) {
+      setError('서버 연결 불가');
+      return;
+    }
+
+    if (!selectedTicker) {
       setError('티커를 선택해주세요');
       return;
     }
@@ -84,41 +102,29 @@ export default function BasicBacktest({
     setError(null);
 
     try {
-      // CSV 데이터 로드
-      let data = await loadCSVFromFile(ticker.file);
-
-      if (data.length === 0) {
-        throw new Error('데이터를 불러올 수 없습니다');
-      }
-
-      // 기간 필터링
-      if (startDate && endDate) {
-        const startTs = new Date(startDate).getTime() / 1000;
-        const endTs = new Date(endDate).getTime() / 1000 + 86400; // 종료일 포함
-        data = data.filter(d => d.time >= startTs && d.time <= endTs);
-      }
-
-      if (data.length === 0) {
-        throw new Error('선택한 기간에 데이터가 없습니다');
-      }
-
-      // 백테스트 실행
       const initialCapital = Number(initialCapitalStr) || 10000;
-      const backtestResult = selectedStrategy.execute(data, {
-        ...parameters,
+
+      // 백엔드 API 호출 (priceData 포함)
+      const backtestResult = await runBacktestAPI({
+        strategyId: selectedStrategyId,
+        tickerId: selectedTicker,
+        startDate,
+        endDate,
         initialCapital,
+        parameters,
         applyFee,
       });
 
       setResult(backtestResult);
-      setChartData(data);
+      // priceData는 백엔드 응답에서 가져옴
+      setChartData(backtestResult.priceData || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : '백테스트 실행 중 오류 발생');
       console.error('Backtest error:', err);
     } finally {
       setLoading(false);
     }
-  }, [selectedStrategy, tickers, selectedTicker, startDate, endDate, initialCapitalStr, parameters, applyFee]);
+  }, [selectedStrategy, selectedStrategyId, selectedTicker, startDate, endDate, initialCapitalStr, parameters, applyFee, isBackendAvailable, runBacktestAPI]);
 
   // 성과 지표 카드 데이터 메모이제이션
   const metricCards = useMemo(() => [
@@ -128,12 +134,33 @@ export default function BasicBacktest({
     { label: '거래', value: result?.metrics.totalTrades.toString() || '-', unit: '회', color: 'text-gray-600 dark:text-gray-300' },
   ], [result]);
 
+  // 실행 모드 표시 텍스트
+  const getModeLabel = (mode: ExecutionMode) => {
+    switch (mode) {
+      case 'backend': return 'Online';
+      case 'checking': return '...';
+      case 'unavailable': return 'Offline';
+    }
+  };
+
+  // 실행 모드 색상
+  const getModeStyle = (mode: ExecutionMode) => {
+    switch (mode) {
+      case 'backend':
+        return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+      case 'checking':
+        return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+      case 'unavailable':
+        return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* 에러 메시지 */}
-      {error && (
+      {(error || backendError) && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-          <p className="text-red-800 dark:text-red-200 text-sm">{error}</p>
+          <p className="text-red-800 dark:text-red-200 text-sm">{error || backendError}</p>
         </div>
       )}
 
@@ -147,6 +174,7 @@ export default function BasicBacktest({
               value={selectedStrategyId}
               onChange={(e) => handleStrategyChange(e.target.value)}
               className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              disabled={!isBackendAvailable}
             >
               <option value="">선택</option>
               {strategies.map((strategy) => (
@@ -155,15 +183,22 @@ export default function BasicBacktest({
             </select>
           </div>
 
-          {/* 실행 버튼 */}
-          <div>
+          {/* 실행 버튼 + 모드 표시 */}
+          <div className="flex items-center gap-2">
             <button
               onClick={runBacktest}
-              disabled={loading || !selectedStrategyId}
+              disabled={loading || !selectedStrategyId || !isBackendAvailable}
               className="px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded transition-colors"
             >
               {loading ? '실행중...' : '실행'}
             </button>
+            {/* 실행 모드 표시 */}
+            <span
+              className={`px-2 py-0.5 text-xs rounded ${getModeStyle(executionMode)}`}
+              title={isBackendAvailable ? '서버 연결됨' : '서버 연결 필요'}
+            >
+              {getModeLabel(executionMode)}
+            </span>
           </div>
         </div>
 
@@ -274,7 +309,9 @@ export default function BasicBacktest({
         !loading && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
             <p className="text-gray-500 dark:text-gray-400 text-sm">
-              전략을 선택하고 실행해주세요
+              {isBackendAvailable
+                ? '전략을 선택하고 실행해주세요'
+                : '서버 연결 불가'}
             </p>
           </div>
         )

@@ -7,7 +7,7 @@ import path from 'path';
  * GET /api/tickers
  */
 export async function GET() {
-  const stocksDir = path.join(process.cwd(), 'public', 'data', 'stocks', 'us');
+  const stocksDir = path.join(process.cwd(), '..', 'data', 'stocks', 'us');
 
   try {
     // 티커 폴더 목록 읽기

@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { loadCSVFromFile } from '@/lib/backtest/dataLoader';
 import ModeSelector, { BacktestMode } from '@/components/backtest/ModeSelector';
 import CommonSettings from '@/components/backtest/CommonSettings';
 import BasicBacktest from '@/components/backtest/basic/BasicBacktest';
 import CompareBacktest from '@/components/backtest/compare/CompareBacktest';
+import { useBackendBacktest } from '@/lib/backtest/useBackendBacktest';
 
 interface Ticker {
   id: string;
@@ -26,6 +26,9 @@ export default function BacktestPage() {
   const [dateRange, setDateRange] = useState<{ min: string; max: string }>({ min: '', max: '' });
   const [applyFee, setApplyFee] = useState(true);
 
+  // Backend hook for date range API
+  const { isBackendAvailable, getDateRange } = useBackendBacktest();
+
   // 티커 목록 로드
   useEffect(() => {
     async function fetchTickers() {
@@ -43,29 +46,24 @@ export default function BacktestPage() {
     fetchTickers();
   }, []);
 
-  // 티커 변경 시 날짜 범위 업데이트
+  // 티커 변경 시 날짜 범위 업데이트 (백엔드 API 사용)
   useEffect(() => {
     async function loadDateRange() {
-      const ticker = tickers.find(t => t.id === selectedTicker);
-      if (!ticker) return;
+      if (!selectedTicker || !isBackendAvailable) return;
 
       try {
-        const data = await loadCSVFromFile(ticker.file);
-        if (data.length > 0) {
-          const minDate = new Date(data[0].time * 1000).toISOString().split('T')[0];
-          const maxDate = new Date(data[data.length - 1].time * 1000).toISOString().split('T')[0];
-          setDateRange({ min: minDate, max: maxDate });
-          setStartDate(minDate);
-          setEndDate(maxDate);
-        }
+        const range = await getDateRange(selectedTicker);
+        setDateRange({ min: range.min, max: range.max });
+        setStartDate(range.min);
+        setEndDate(range.max);
       } catch (err) {
         console.error('Failed to load date range:', err);
       }
     }
-    if (selectedTicker) {
+    if (selectedTicker && isBackendAvailable) {
       loadDateRange();
     }
-  }, [selectedTicker, tickers]);
+  }, [selectedTicker, isBackendAvailable, getDateRange]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

@@ -1,5 +1,6 @@
 """Application configuration using Pydantic Settings."""
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -22,8 +23,8 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
-    # Data paths
-    data_dir: Path = Path("data/stocks")
+    # Data paths (relative to backend directory)
+    data_dir: Path = Path("../data/stocks")
 
     # Worker settings
     max_workers: int = 4
@@ -34,6 +35,13 @@ class Settings(BaseSettings):
 
 
 @lru_cache
-def get_settings() -> Settings:
-    """Get cached settings instance."""
+def _get_cached_settings() -> Settings:
+    """Get cached settings instance (for production)."""
     return Settings()
+
+
+def get_settings() -> Settings:
+    """Get settings instance. Bypasses cache in debug mode."""
+    if os.getenv("DEBUG", "false").lower() == "true":
+        return Settings()
+    return _get_cached_settings()

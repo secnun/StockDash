@@ -3,10 +3,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.models.strategy import ParameterDefinition, StrategyInfo, StrategyListResponse
-from app.strategies.base import StrategyRegistry
-
-# Import strategies to register them
-from app.strategies import sample_sma  # noqa: F401
+from app.strategies import StrategyRegistry  # Import from __init__ to trigger strategy registration
 
 router = APIRouter(prefix="/api/strategies", tags=["strategies"])
 

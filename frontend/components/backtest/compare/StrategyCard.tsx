@@ -1,31 +1,34 @@
 'use client';
 
 import { useCallback } from 'react';
-import { getAllStrategies, getStrategy } from '@/lib/strategies';
 import { ParameterValue, SelectedStrategy } from '@/types/backtest';
+import { StrategyInfo } from '@/lib/api/client';
 
 interface StrategyCardProps {
   selectedStrategy: SelectedStrategy;
+  strategies: StrategyInfo[];
   color: string;
   index: number;
   onRemove: () => void;
   onUpdate: (updated: SelectedStrategy) => void;
+  disabled?: boolean;
 }
 
 export default function StrategyCard({
   selectedStrategy,
+  strategies,
   color,
   index,
   onRemove,
   onUpdate,
+  disabled = false,
 }: StrategyCardProps) {
-  const strategies = getAllStrategies();
   const strategy = selectedStrategy.strategyId
-    ? getStrategy(selectedStrategy.strategyId)
+    ? strategies.find(s => s.id === selectedStrategy.strategyId)
     : null;
 
   const handleStrategyChange = useCallback((strategyId: string) => {
-    const newStrategy = getStrategy(strategyId);
+    const newStrategy = strategies.find(s => s.id === strategyId);
     if (newStrategy) {
       const defaultParams: Record<string, ParameterValue> = {};
       newStrategy.parameters.forEach((param) => {
@@ -43,7 +46,7 @@ export default function StrategyCard({
         params: {},
       });
     }
-  }, [selectedStrategy, onUpdate]);
+  }, [selectedStrategy, strategies, onUpdate]);
 
   const handleParamChange = useCallback((key: string, value: ParameterValue) => {
     onUpdate({
@@ -74,7 +77,8 @@ export default function StrategyCard({
           <select
             value={selectedStrategy.strategyId}
             onChange={(e) => handleStrategyChange(e.target.value)}
-            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-900"
+            disabled={disabled}
           >
             <option value="">전략 선택</option>
             {strategies.map((s) => (
@@ -98,6 +102,7 @@ export default function StrategyCard({
                     max={param.max}
                     step={param.step || 1}
                     className="w-16 px-1.5 py-0.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    disabled={disabled}
                   />
                 )}
               </div>
@@ -108,8 +113,9 @@ export default function StrategyCard({
         {/* 삭제 버튼 */}
         <button
           onClick={onRemove}
-          className="flex-shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors"
+          className="flex-shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
           title="전략 제거"
+          disabled={disabled}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

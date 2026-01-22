@@ -9,9 +9,13 @@ StockDash는 주식 시스템 트레이딩 백테스팅 플랫폼입니다. (v0.
 ## Commands
 
 ```bash
-npm run dev      # 개발 서버 실행 (localhost:3000)
-npm run build    # 프로덕션 빌드
-npm run lint     # ESLint 실행
+# Frontend
+cd frontend && npm run dev      # 개발 서버 실행 (localhost:3000)
+cd frontend && npm run build    # 프로덕션 빌드
+cd frontend && npm run lint     # ESLint 실행
+
+# Backend
+cd backend && uvicorn app.main:app --reload  # 백엔드 서버 (localhost:8000)
 ```
 
 ## Architecture
@@ -23,34 +27,38 @@ npm run lint     # ESLint 실행
 
 ### Key Directories
 ```
-app/
-├── page.tsx              # 대시보드 (M2 자금 흐름 지도)
-├── backtest/page.tsx     # 백테스팅 페이지 (메인 기능)
-└── api/tickers/route.ts  # 티커 목록 API
+data/                         # CSV 시세 데이터 (Git 제외)
+└── stocks/us/{ticker}/       # 티커별 OHLCV 데이터
 
-lib/
-├── backtest/
-│   ├── engine.ts         # BacktestEngine 클래스 (매매 실행)
-│   ├── metrics.ts        # 성과 지표 (CAGR, MDD, Sharpe, 승률)
-│   ├── dataLoader.ts     # CSV 파싱 및 로드
-│   └── csvExport.ts      # 결과 CSV 내보내기
-└── strategies/           # 매매 전략 (Git 제외, 비공개)
-    ├── index.ts          # 전략 레지스트리
-    └── ddeolsapro*.ts    # 떨사오팔 전략들
+frontend/
+├── app/
+│   ├── page.tsx              # 대시보드 (M2 자금 흐름 지도)
+│   ├── backtest/page.tsx     # 백테스팅 페이지 (메인 기능)
+│   └── api/tickers/route.ts  # 티커 목록 API
+├── lib/
+│   ├── backtest/
+│   │   ├── csvExport.ts          # 결과 CSV 내보내기
+│   │   └── useBackendBacktest.ts # 백엔드 API 통신 Hook
+│   └── api/
+│       └── client.ts             # API 클라이언트
+├── components/
+│   ├── backtest/Charts/
+│   │   └── EquityChart.tsx   # 자산 추이 + Drawdown 차트
+│   └── dashboard/
+│       └── WorldMap.tsx      # D3.js 세계지도
+└── types/backtest.ts         # TypeScript 인터페이스 (OHLCV, Trade, Strategy)
 
-components/
-├── backtest/Charts/
-│   └── EquityChart.tsx   # 자산 추이 + Drawdown 차트
-└── dashboard/
-    └── WorldMap.tsx      # D3.js 세계지도
-
-types/backtest.ts         # TypeScript 인터페이스 (OHLCV, Trade, Strategy)
-public/data/              # CSV 데이터 (Git 제외)
+backend/app/                  # Python FastAPI 백엔드
+├── api/                      # API 엔드포인트
+├── services/                 # 데이터 로딩 서비스
+├── strategies/               # 매매 전략 (비공개)
+└── core/                     # 설정 및 공통 모듈
 ```
 
 ### Data Flow
 ```
-CSV 로드 → parseCSV() → Strategy.execute() → calculateMetrics() → 차트 렌더링
+백테스트:  프론트엔드 API 요청 → Python 백엔드 (CSV 로드 + 전략 실행) → 결과 + priceData 반환 → 차트 렌더링
+날짜범위: /api/backtest/date-range → 백엔드에서 CSV 파싱 → 사용 가능한 날짜 범위 반환
 ```
 
 ### Strategy Interface
@@ -65,7 +73,15 @@ interface Strategy {
 ```
 
 ### Path Alias
-`@/*` → 프로젝트 루트 (예: `@/lib/backtest/engine`)
+`@/*` → frontend 폴더 루트 (예: `@/lib/api/client`)
+
+### Backend API
+
+| 엔드포인트 | 메서드 | 용도 |
+|-----------|--------|------|
+| `/api/strategies` | GET | 사용 가능한 전략 목록 |
+| `/api/backtest/run` | POST | 백테스트 실행 |
+| `/api/backtest/date-range` | GET | 티커의 사용 가능한 날짜 범위 |
 
 ## Excluded Directories
 
@@ -74,10 +90,9 @@ interface Strategy {
 | 디렉토리 | 용도 |
 |---------|------|
 | `docs/` | 사용자 전용 문서 및 전략 메모 |
-| `public/data/` | 시세 데이터 (용량/저작권) |
-| `lib/strategies/` | 매매 전략 로직 (비공개) |
+| `data/` | 시세 데이터 (용량/저작권) |
+| `backend/app/strategies/` | 매매 전략 로직 (비공개) |
 
 ## Future Plans
 
-- 딥마이닝: 파라미터 그리드 서치 (Web Workers 병렬 처리)
-- 백엔드 확장 시 전략 팩토리 패턴 리팩토링 예정
+- 딥마이닝: 파라미터 그리드 서치 (Python 백엔드 병렬 처리)
