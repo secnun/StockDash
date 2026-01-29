@@ -28,6 +28,12 @@ export default function Navigation() {
               >
                 퀀트투자
               </Link>
+              <Link
+                href="/crypto-backtest"
+                className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400"
+              >
+                암호화폐
+              </Link>
             </div>
           </div>
           <div className="flex items-center">

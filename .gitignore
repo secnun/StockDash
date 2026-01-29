@@ -39,6 +39,7 @@ yarn-error.log*
 # project specific - excluded from version control
 /docs
 /data
+/scripts
 
 # typescript
 *.tsbuildinfo

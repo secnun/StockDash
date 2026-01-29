@@ -282,6 +282,128 @@ export async function runGridSearchAPI(
 }
 
 /**
+ * Crypto Backtest API
+ */
+
+export interface CryptoBacktestRequest {
+  coin: string;
+  market: string;
+  strategyId: string;
+  initialCapital: number;
+  startDate?: string;
+  endDate?: string;
+  applyFee?: boolean;
+  parameters?: Record<string, ParameterValue>;
+}
+
+/**
+ * Get list of crypto strategies from backend
+ */
+export async function fetchCryptoStrategies(): Promise<StrategyInfo[]> {
+  const response = await fetch(`${API_BASE_URL}/api/crypto/strategies`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch crypto strategies: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get date range for a crypto pair (via backend)
+ */
+export async function fetchCryptoDateRange(coin: string, market: string): Promise<DateRangeResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/crypto/date-range?coin=${encodeURIComponent(coin)}&market=${encodeURIComponent(market)}`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || 'Failed to fetch date range');
+  }
+  return response.json();
+}
+
+/**
+ * Run crypto backtest via backend API
+ */
+export async function runCryptoBacktestAPI(request: CryptoBacktestRequest): Promise<BacktestResult> {
+  const params = new URLSearchParams({
+    coin: request.coin,
+    market: request.market,
+    strategy_id: request.strategyId,
+    initial_capital: request.initialCapital.toString(),
+  });
+
+  if (request.startDate) params.set('start_date', request.startDate);
+  if (request.endDate) params.set('end_date', request.endDate);
+  if (request.applyFee !== undefined) params.set('apply_fee', request.applyFee.toString());
+
+  // Note: parameters are passed as query params for simplicity
+  // A proper implementation would use POST body
+
+  const response = await fetch(`${API_BASE_URL}/api/crypto/backtest/run?${params.toString()}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: request.parameters ? JSON.stringify(request.parameters) : undefined,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || 'Crypto backtest failed');
+  }
+
+  const data: BacktestResponse = await response.json();
+
+  return {
+    trades: data.trades,
+    equity: data.equity,
+    metrics: data.metrics,
+    priceData: data.priceData,
+  };
+}
+
+/**
+ * Pairs Mode API
+ */
+
+export interface PricePoint {
+  time: number;
+  price: number;
+  changePercent: number;
+}
+
+export interface PairPriceResponse {
+  coin: string;
+  market: string;
+  data: PricePoint[];
+  startPrice: number;
+  endPrice: number;
+  totalChange: number;
+}
+
+/**
+ * Get price data for pairs comparison
+ */
+export async function fetchPairPriceData(
+  coin: string,
+  market: string,
+  startDate?: string,
+  endDate?: string,
+): Promise<PairPriceResponse> {
+  const params = new URLSearchParams({
+    coin,
+    market,
+  });
+  if (startDate) params.set('start_date', startDate);
+  if (endDate) params.set('end_date', endDate);
+
+  const response = await fetch(`${API_BASE_URL}/api/crypto/pairs/price?${params.toString()}`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || 'Failed to fetch pair price data');
+  }
+  return response.json();
+}
+
+/**
  * API client instance with all methods
  */
 export const apiClient = {
@@ -294,6 +416,11 @@ export const apiClient = {
     run: runBacktestAPI,
     gridSearch: runGridSearchAPI,
     dateRange: fetchDateRange,
+  },
+  crypto: {
+    strategies: fetchCryptoStrategies,
+    dateRange: fetchCryptoDateRange,
+    run: runCryptoBacktestAPI,
   },
 };
 
