@@ -7,6 +7,7 @@ import { BacktestResult, CompareResult } from '@/types/backtest';
 import CryptoStrategyCard from './CryptoStrategyCard';
 import MultiEquityChart from '@/components/backtest/Charts/MultiEquityChart';
 import MultiDrawdownChart from '@/components/backtest/Charts/MultiDrawdownChart';
+import CompareYearlyStatsGrid from '@/components/backtest/Charts/CompareYearlyStatsGrid';
 
 interface Coin {
   id: string;
@@ -308,6 +309,9 @@ export default function CryptoCompareBacktest({
               <MultiDrawdownChart results={results} />
             </div>
           </div>
+
+          {/* 연도별 결과 테이블 그리드 */}
+          <CompareYearlyStatsGrid results={results} />
         </div>
       )}
 

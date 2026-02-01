@@ -5,6 +5,7 @@ import { fetchCryptoStrategies, runCryptoBacktestAPI, StrategyInfo } from '@/lib
 import { BacktestResult } from '@/types/backtest';
 import EquityChart from '@/components/backtest/Charts/EquityChart';
 import DrawdownChart from '@/components/backtest/Charts/DrawdownChart';
+import YearlyStatsTable from '@/components/backtest/Charts/YearlyStatsTable';
 
 interface Coin {
   id: string;
@@ -250,6 +251,9 @@ export default function CryptoBasicBacktest({
               <DrawdownChart equity={result.equity} />
             </div>
           </div>
+
+          {/* 연도별 결과 테이블 */}
+          <YearlyStatsTable equity={result.equity} trades={result.trades} />
         </div>
       ) : (
         !loading && (

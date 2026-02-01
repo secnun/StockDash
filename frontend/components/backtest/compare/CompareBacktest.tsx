@@ -8,6 +8,7 @@ import StrategyCard from './StrategyCard';
 import CompareMetricsTable from './CompareMetricsTable';
 import MultiEquityChart from '@/components/backtest/Charts/MultiEquityChart';
 import MultiDrawdownChart from '@/components/backtest/Charts/MultiDrawdownChart';
+import CompareYearlyStatsGrid from '@/components/backtest/Charts/CompareYearlyStatsGrid';
 import { useBackendBacktest, ExecutionMode } from '@/lib/backtest/useBackendBacktest';
 
 interface Ticker {
@@ -277,6 +278,9 @@ export default function CompareBacktest({
               <MultiDrawdownChart results={results} />
             </div>
           </div>
+
+          {/* 연도별 결과 테이블 그리드 */}
+          <CompareYearlyStatsGrid results={results} />
         </div>
       )}
 

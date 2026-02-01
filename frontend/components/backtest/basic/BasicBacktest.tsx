@@ -5,6 +5,7 @@ import { BacktestResult, OHLCV, ParameterValue } from '@/types/backtest';
 import { StrategyInfo } from '@/lib/api/client';
 import EquityChart from '@/components/backtest/Charts/EquityChart';
 import DrawdownChart from '@/components/backtest/Charts/DrawdownChart';
+import YearlyStatsTable from '@/components/backtest/Charts/YearlyStatsTable';
 import { backestResultToCSV, downloadCSV, generateFilename } from '@/lib/backtest/csvExport';
 import { useBackendBacktest, ExecutionMode } from '@/lib/backtest/useBackendBacktest';
 
@@ -305,6 +306,9 @@ export default function BasicBacktest({
               <DrawdownChart equity={result.equity} />
             </div>
           </div>
+
+          {/* 연도별 결과 테이블 */}
+          <YearlyStatsTable equity={result.equity} trades={result.trades} />
         </div>
       ) : (
         !loading && (
