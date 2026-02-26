@@ -1,141 +1,236 @@
-# StockDash Backtest
+<div align="center">
 
-주식 시스템 트레이딩 백테스팅 플랫폼
+# StockDash
 
-## 프로젝트 소개
+**시스템 트레이딩을 위한 웹 기반 백테스팅 플랫폼**
 
-StockDash는 다양한 매매 전략을 백테스트하고 성과를 분석할 수 있는 웹 기반 플랫폼입니다.
+전략 백테스트 · 파라미터 최적화 · 실시간 성과 분석
 
-### 주요 기능
+[![Version](https://img.shields.io/badge/version-v1.0.1-blue?style=for-the-badge)](https://github.com/secnun/StockDash/releases)
+[![License](https://img.shields.io/badge/license-Private-red?style=for-the-badge)](#)
 
-- 전략 기반 백테스팅 실행
-- 자산 추이 및 Drawdown 시각화
-- 성과 지표 분석 (총 수익률, CAGR, MDD, 승률)
-- CSV 결과 다운로드
+<br />
 
-### 기술 스택
+[![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Python](https://img.shields.io/badge/Python_3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 
-| 분류 | 기술 |
-|------|------|
-| 프론트엔드 | Next.js 16, React 19, TypeScript 5 |
-| 백엔드 | Python FastAPI |
-| 스타일링 | Tailwind CSS 4 |
-| 차트 | Lightweight Charts (TradingView) |
+</div>
 
-## 시작하기
+<br />
 
-### 1. 의존성 설치
+<!-- 스크린샷이 있다면 아래 주석을 해제하세요
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" width="800" alt="StockDash Dashboard" />
+</p>
+-->
+
+## About
+
+StockDash는 다양한 매매 전략을 과거 데이터로 검증하고, 파라미터를 자동 최적화하며, 연도별 성과를 분석할 수 있는 풀스택 백테스팅 플랫폼입니다.
+
+미국·국내 주식, 레버리지 ETF, 암호화폐를 지원하며, TradingView 차트로 시각화하고 SSE 스트리밍으로 최적화 진행 상황을 실시간 확인할 수 있습니다.
+
+<br />
+
+## Features
+
+- **멀티 전략 백테스트** — 단일 전략 실행 또는 Compare 모드로 여러 전략을 동시에 비교
+- **파라미터 최적화** — Grid Search / Monte Carlo 알고리즘으로 최적 파라미터 자동 탐색
+- **실시간 SSE 스트리밍** — 최적화 진행률을 실시간으로 확인하고 중간 취소 가능
+- **연도별 독립 분석** — Seed Reset / Seed Carry 두 가지 모드로 연도·월별 성과 분석
+- **멀티 마켓** — 미국 주식, 국내 주식, 레버리지 ETF, 암호화폐(BTC/ETH/SOL/XRP) 지원
+- **성과 지표** — Total Return, CAGR, MDD, Win Rate, Sharpe Ratio 자동 산출
+- **스위칭 전략 랩** — 지표 기반 조건부 전략 전환 시뮬레이션 및 최적화
+- **결과 캐싱** — CSV 기반 캐시로 이미 계산된 조합을 건너뛰어 재실행 속도 향상
+- **K-Means 클러스터링** — 최적화 결과에서 다양한 특성의 대표 파라미터셋 자동 선별
+- **다크 모드** — `next-themes` 기반 라이트/다크 테마 지원
+
+<br />
+
+## Tech Stack
+
+| Layer | Technology |
+|:--|:--|
+| **Frontend** | Next.js 16, React 19, TypeScript 5, Tailwind CSS 4 |
+| **Backend** | Python 3.11+, FastAPI, Pydantic v2, NumPy, pandas |
+| **Charts** | TradingView Lightweight Charts |
+| **Optimization** | scikit-learn (K-Means), ProcessPoolExecutor |
+| **Streaming** | Server-Sent Events (SSE) via sse-starlette |
+| **Infra** | Docker, Gunicorn + Uvicorn Workers |
+
+<br />
+
+## Getting Started
+
+### Prerequisites
+
+- **Node.js** >= 18.x
+- **Python** >= 3.11
+- OHLCV CSV 데이터 (아래 [Data Format](#data-format) 참고)
+
+### Installation
 
 ```bash
-# Frontend
+# 1. Clone
+git clone https://github.com/secnun/StockDash.git
+cd StockDash
+
+# 2. Frontend 의존성 설치
 cd frontend && npm install
 
-# Backend
-cd backend && pip install -r requirements.txt
+# 3. Backend 의존성 설치
+cd ../backend && pip install -e ".[dev]"
 ```
 
-### 2. 데이터 준비
-
-프로젝트는 루트의 `data/` 폴더에서 CSV 데이터를 로드합니다. 이 폴더는 Git에서 제외되어 있으므로 직접 생성해야 합니다.
-
-#### 폴더 구조 생성
+### Running
 
 ```bash
-mkdir -p data/stocks/us/{티커명}
+# Terminal 1 — Backend (http://localhost:8000)
+cd backend && uvicorn app.main:app --reload
+
+# Terminal 2 — Frontend (http://localhost:3000)
+cd frontend && npm run dev
 ```
 
-예시:
+브라우저에서 `http://localhost:3000` 접속
+
+### Docker
+
 ```bash
-mkdir -p data/stocks/us/soxl
-mkdir -p data/stocks/us/tqqq
-mkdir -p data/stocks/us/spy
+cd backend
+docker compose up -d
+# API: http://localhost:8000
+# Docs: http://localhost:8000/docs
 ```
 
-#### CSV 파일 형식
+<br />
 
-각 티커 폴더에 OHLCV 데이터가 포함된 CSV 파일을 배치합니다.
+## Data Format
 
-**파일명 예시:** `1d_20260108.csv`
+`data/stocks/{market}/{ticker}/` 폴더에 OHLCV CSV 파일을 배치합니다.
+
+```
+data/
+├── stocks/
+│   ├── us/soxl/1d_20260108.csv
+│   └── ko/samsung/1d_20260108.csv
+└── crypto/{coin}/day/{market}/
+```
 
 **CSV 형식:**
+
 ```csv
 time,open,high,low,close,volume
 1704067200,25.50,26.00,25.30,25.80,1000000
-1704153600,25.80,26.20,25.60,26.10,1200000
-...
 ```
 
-| 컬럼 | 설명 | 형식 |
-|------|------|------|
-| time | 타임스탬프 | Unix timestamp (초) |
-| open | 시가 | 숫자 |
-| high | 고가 | 숫자 |
-| low | 저가 | 숫자 |
-| close | 종가 | 숫자 |
-| volume | 거래량 | 숫자 |
+| Column | Type | Description |
+|:--|:--|:--|
+| `time` | `int` | Unix timestamp (seconds) |
+| `open` | `float` | 시가 |
+| `high` | `float` | 고가 |
+| `low` | `float` | 저가 |
+| `close` | `float` | 종가 |
+| `volume` | `int` | 거래량 |
 
-### 3. 개발 서버 실행
+<br />
 
-```bash
-# Backend (터미널 1)
-cd backend && uvicorn app.main:app --reload
-# http://localhost:8000
-
-# Frontend (터미널 2)
-cd frontend && npm run dev
-# http://localhost:3000
-```
-
-브라우저에서 [http://localhost:3000](http://localhost:3000) 접속
-
-### 4. 백테스트 실행
-
-1. `/backtest` 페이지로 이동
-2. 티커, 기간, 초기 자산 설정
-3. 전략 선택 및 파라미터 조정
-4. "실행" 버튼 클릭
-
-## 프로젝트 구조
+## Project Structure
 
 ```
-├── data/                       # CSV 시세 데이터 (Git 제외)
-│   └── stocks/us/{ticker}/     # 티커별 OHLCV 데이터
-├── frontend/                   # Next.js 프론트엔드
-│   ├── app/                    # 페이지 및 API 라우트
-│   ├── components/             # React 컴포넌트
-│   ├── lib/                    # 유틸리티 함수
-│   └── types/                  # TypeScript 타입
-└── backend/                    # Python FastAPI 백엔드
-    ├── app/api/                # API 엔드포인트
-    ├── app/services/           # 데이터 로딩 서비스
-    └── app/strategies/         # 매매 전략 (비공개)
+stockdash/
+├── frontend/                    # Next.js 프론트엔드
+│   ├── app/                     # App Router 페이지
+│   │   ├── backtest/            #   ├── 미국·국내·레버리지 백테스트
+│   │   ├── optimizer/           #   ├── 파라미터 최적화
+│   │   ├── crypto-backtest/     #   ├── 암호화폐 백테스트 & 페어 비교
+│   │   └── lab/                 #   └── 스위칭 전략 랩
+│   ├── components/              # React 컴포넌트
+│   ├── lib/                     # API 클라이언트, hooks, 유틸리티
+│   └── types/                   # TypeScript 타입 정의
+│
+├── backend/                     # FastAPI 백엔드
+│   └── app/
+│       ├── api/                 # REST API 엔드포인트
+│       │   ├── backtest.py      #   ├── 백테스트 실행
+│       │   ├── optimizer.py     #   ├── 파라미터 최적화 (SSE)
+│       │   ├── crypto.py        #   ├── 암호화폐 백테스트
+│       │   └── switching.py     #   └── 스위칭 전략
+│       ├── services/            # 비즈니스 로직
+│       │   ├── engine.py        #   ├── 백테스트 엔진
+│       │   ├── metrics.py       #   ├── 성과 지표 (NumPy 가속)
+│       │   ├── clustering.py    #   ├── K-Means 클러스터링
+│       │   └── indicators.py    #   └── 기술적 지표 계산
+│       ├── strategies/          # 매매 전략 (비공개)
+│       └── core/                # 설정 및 공통 모듈
+│
+├── data/                        # 시세 데이터 (Git 제외)
+└── scripts/                     # 데이터 수집 및 배치 스크립트
 ```
 
-## Git에서 제외된 항목
+<br />
 
-다음 항목들은 `.gitignore`에 포함되어 있습니다:
+## API Endpoints
 
-| 항목 | 이유 |
-|------|------|
-| `/docs` | 개인 문서 및 전략 메모 |
-| `/data` | 시세 데이터 (용량/저작권) |
-| `/backend/app/strategies` | 매매 전략 로직 (비공개) |
-| `/.claude/` | Claude Code 설정 |
+| Method | Endpoint | Description |
+|:--|:--|:--|
+| `GET` | `/api/strategies` | 전략 목록 조회 |
+| `POST` | `/api/backtest/run` | 백테스트 실행 |
+| `GET` | `/api/backtest/date-range/{ticker_id}` | 티커 날짜 범위 조회 |
+| `POST` | `/api/optimizer/run` | 파라미터 최적화 (SSE) |
+| `GET` | `/api/optimizer/cached/{strategy}/{ticker}` | 캐시된 최적화 결과 |
+| `POST` | `/api/crypto/backtest/run` | 암호화폐 백테스트 |
+| `GET` | `/api/crypto/pairs/price` | 암호화폐 페어 가격 비교 |
+| `POST` | `/api/switching/backtest/run` | 스위칭 백테스트 |
+| `POST` | `/api/switching/optimizer/run` | 스위칭 최적화 (SSE) |
+| `GET` | `/docs` | Swagger UI |
 
-## 스크립트
+<br />
+
+## Scripts
 
 ```bash
 # Frontend
-cd frontend && npm run dev      # 개발 서버 실행 (localhost:3000)
-cd frontend && npm run build    # 프로덕션 빌드
-cd frontend && npm run lint     # ESLint 검사
+npm run dev              # 개발 서버
+npm run build            # 프로덕션 빌드
+npm run lint             # ESLint 검사
 
 # Backend
-cd backend && uvicorn app.main:app --reload  # 개발 서버 (localhost:8000)
+uvicorn app.main:app --reload    # 개발 서버
+pytest                           # 테스트 실행
+ruff check .                     # 린트
+mypy .                           # 타입 체크
 ```
 
-## 전략 추가 방법
+<br />
 
-1. `backend/app/strategies/` 폴더에 새 전략 파일 생성
-2. `BaseStrategy` 클래스 상속 및 구현
-3. `backend/app/strategies/__init__.py`에 등록
+## Scoring Formula
+
+최적화 결과의 composite score는 다음과 같이 산출됩니다:
+
+```
+base_score = avg_return / (max_mdd × (1 + CV))
+score = base_score × positive_ratio²
+```
+
+- `CV` = 수익률 표준편차 / |평균 수익률| (변동계수)
+- `positive_ratio` = 양수 수익 연도 비율 — 마이너스 연도가 많을수록 점수가 급격히 감소
+
+<br />
+
+## License
+
+This project is **private** and not licensed for public use.
+
+<br />
+
+---
+
+<div align="center">
+
+Built with **Next.js**, **FastAPI**, and **TradingView Lightweight Charts**
+
+</div>
