@@ -6,6 +6,7 @@ import { calculateYearlyStats, calculateTotalStats, YearlyStats } from '@/lib/ba
 
 interface CompareYearlyStatsGridProps {
   results: CompareResult[];
+  currencySymbol?: string;
 }
 
 /**
@@ -14,7 +15,7 @@ interface CompareYearlyStatsGridProps {
  * - 3개: 좌우 2개 + 아래 1개
  * - 4개: 좌우 2개 + 아래 좌우 2개
  */
-export default function CompareYearlyStatsGrid({ results }: CompareYearlyStatsGridProps) {
+export default function CompareYearlyStatsGrid({ results, currencySymbol }: CompareYearlyStatsGridProps) {
   if (results.length === 0) return null;
 
   // 2개씩 그룹화
@@ -37,6 +38,7 @@ export default function CompareYearlyStatsGrid({ results }: CompareYearlyStatsGr
               color={compareResult.color}
               equity={compareResult.result.equity}
               trades={compareResult.result.trades}
+              currencySymbol={currencySymbol}
             />
           ))}
         </div>
@@ -50,12 +52,13 @@ interface YearlyStatsTableCompactProps {
   color: string;
   equity: { time: number; value: number }[];
   trades: { time: number; type: 'buy' | 'sell'; price: number; quantity: number; value: number }[];
+  currencySymbol?: string;
 }
 
 /**
  * Compare 모드용 컴팩트 연도별 테이블
  */
-function YearlyStatsTableCompact({ strategyName, color, equity, trades }: YearlyStatsTableCompactProps) {
+function YearlyStatsTableCompact({ strategyName, color, equity, trades, currencySymbol = '$' }: YearlyStatsTableCompactProps) {
   const yearlyStats = useMemo(() => calculateYearlyStats(equity, trades), [equity, trades]);
   const totalStats = useMemo(() => calculateTotalStats(equity, trades), [equity, trades]);
 
@@ -63,11 +66,11 @@ function YearlyStatsTableCompact({ strategyName, color, equity, trades }: Yearly
 
   const formatValue = (value: number): string => {
     if (value >= 1000000) {
-      return `$${(value / 1000000).toFixed(2)}M`;
+      return `${currencySymbol}${(value / 1000000).toFixed(2)}M`;
     } else if (value >= 1000) {
-      return `$${(value / 1000).toFixed(1)}K`;
+      return `${currencySymbol}${(value / 1000).toFixed(1)}K`;
     }
-    return `$${value.toFixed(0)}`;
+    return `${currencySymbol}${value.toFixed(0)}`;
   };
 
   const getReturnColor = (returnValue: number): string => {

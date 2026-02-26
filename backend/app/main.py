@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import backtest, crypto_backtest, grid_search, strategies
+from app.api import backtest, crypto_backtest, optimizer, strategies, switching
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -29,8 +29,9 @@ app.add_middleware(
 # Include routers
 app.include_router(strategies.router)
 app.include_router(backtest.router)
-app.include_router(grid_search.router)
 app.include_router(crypto_backtest.router)
+app.include_router(optimizer.router)
+app.include_router(switching.router)
 
 
 @app.get("/")

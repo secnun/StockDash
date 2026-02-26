@@ -25,13 +25,10 @@ class Settings(BaseSettings):
 
     # Data paths (relative to backend directory)
     data_dir: Path = Path("../data/stocks")
+    optimizer_result_dir: Path = Path("../data/optimizer_result")
 
     # Worker settings
-    max_workers: int = 4
-    grid_search_timeout: int = 300  # seconds
-
-    # Cache settings
-    cache_ttl: int = 3600  # seconds
+    max_workers: int = 6
 
 
 @lru_cache

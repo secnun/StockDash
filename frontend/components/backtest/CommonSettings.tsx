@@ -19,6 +19,7 @@ interface CommonSettingsProps {
   onEndDateChange: (date: string) => void;
   applyFee: boolean;
   onApplyFeeChange: (apply: boolean) => void;
+  market?: 'us' | 'kr';
 }
 
 export default function CommonSettings({
@@ -34,7 +35,9 @@ export default function CommonSettings({
   onEndDateChange,
   applyFee,
   onApplyFeeChange,
+  market = 'us',
 }: CommonSettingsProps) {
+  const currencySymbol = market === 'kr' ? '₩' : '$';
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3 items-end">
       {/* 티커 */}
@@ -53,11 +56,11 @@ export default function CommonSettings({
 
       {/* 초기 자산 */}
       <div>
-        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">초기 자산 ($)</label>
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">초기 자산 ({currencySymbol})</label>
         <input
           type="text"
           inputMode="numeric"
-          value={initialCapitalStr}
+          value={initialCapitalStr ? Number(initialCapitalStr).toLocaleString() : ''}
           onChange={(e) => {
             const value = e.target.value.replace(/[^0-9]/g, '');
             onInitialCapitalChange(value);
@@ -94,7 +97,7 @@ export default function CommonSettings({
 
       {/* 수수료 */}
       <div>
-        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">수수료 (0.1%)</label>
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">수수료 ({market === 'kr' ? '0.015%' : '0.25%'})</label>
         <select
           value={applyFee ? 'yes' : 'no'}
           onChange={(e) => onApplyFeeChange(e.target.value === 'yes')}

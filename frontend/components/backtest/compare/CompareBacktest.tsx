@@ -9,7 +9,8 @@ import CompareMetricsTable from './CompareMetricsTable';
 import MultiEquityChart from '@/components/backtest/Charts/MultiEquityChart';
 import MultiDrawdownChart from '@/components/backtest/Charts/MultiDrawdownChart';
 import CompareYearlyStatsGrid from '@/components/backtest/Charts/CompareYearlyStatsGrid';
-import { useBackendBacktest, ExecutionMode } from '@/lib/backtest/useBackendBacktest';
+import { useBackendBacktest } from '@/lib/backtest/useBackendBacktest';
+import { getModeLabel, getModeStyle } from '@/lib/utils/modeHelpers';
 
 interface Ticker {
   id: string;
@@ -24,6 +25,7 @@ interface CompareBacktestProps {
   startDate: string;
   endDate: string;
   applyFee: boolean;
+  market?: string;
 }
 
 const MAX_STRATEGIES = 4;
@@ -39,6 +41,7 @@ export default function CompareBacktest({
   startDate,
   endDate,
   applyFee,
+  market,
 }: CompareBacktestProps) {
   const [strategies, setStrategies] = useState<StrategyInfo[]>([]);
   const [selectedStrategies, setSelectedStrategies] = useState<SelectedStrategy[]>([
@@ -126,6 +129,7 @@ export default function CompareBacktest({
             initialCapital,
             parameters: selected.params,
             applyFee,
+            market,
           });
 
           return {
@@ -150,29 +154,11 @@ export default function CompareBacktest({
     }
   }, [selectedStrategies, strategies, selectedTicker, startDate, endDate, initialCapitalStr, applyFee, isBackendAvailable, runBacktestAPI]);
 
+  const currencySymbol = market === 'kr' ? '₩' : '$';
   const canAddMore = selectedStrategies.length < MAX_STRATEGIES;
   const validStrategyCount = selectedStrategies.filter(s => s.strategyId).length;
 
-  // 실행 모드 표시 텍스트
-  const getModeLabel = (mode: ExecutionMode) => {
-    switch (mode) {
-      case 'backend': return 'Online';
-      case 'checking': return '...';
-      case 'unavailable': return 'Offline';
-    }
-  };
 
-  // 실행 모드 색상
-  const getModeStyle = (mode: ExecutionMode) => {
-    switch (mode) {
-      case 'backend':
-        return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
-      case 'checking':
-        return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
-      case 'unavailable':
-        return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -267,6 +253,7 @@ export default function CompareBacktest({
                 initialCapital={Number(initialCapitalStr) || 10000}
                 priceData={chartData}
                 tickerName={tickers.find(t => t.id === selectedTicker)?.name}
+                currencySymbol={currencySymbol}
               />
             </div>
           </div>
@@ -280,7 +267,7 @@ export default function CompareBacktest({
           </div>
 
           {/* 연도별 결과 테이블 그리드 */}
-          <CompareYearlyStatsGrid results={results} />
+          <CompareYearlyStatsGrid results={results} currencySymbol={currencySymbol} />
         </div>
       )}
 

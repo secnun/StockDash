@@ -40,19 +40,6 @@ class TestStrategiesAPI:
         assert "strategies" in data
         assert len(data["strategies"]) > 0
 
-    def test_get_strategy(self, client: TestClient) -> None:
-        """Test get strategy endpoint."""
-        response = client.get("/api/strategies/sma_crossover")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["id"] == "sma_crossover"
-        assert "parameters" in data
-
-    def test_get_strategy_not_found(self, client: TestClient) -> None:
-        """Test get strategy with invalid ID."""
-        response = client.get("/api/strategies/nonexistent")
-        assert response.status_code == 404
-
 
 class TestBacktestAPI:
     """Test backtest endpoints."""

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { createChart, UTCTimestamp, IChartApi } from 'lightweight-charts';
 import { getChartTheme, isDarkMode } from '@/lib/theme/chartTheme';
 import { OHLCV } from '@/types/backtest';
@@ -9,6 +9,7 @@ interface EquityChartProps {
   equity: { time: number; value: number }[];
   initialCapital: number;
   priceData?: OHLCV[];
+  currencySymbol?: string;
 }
 
 // MDD 지점 계산 (마커용)
@@ -45,9 +46,22 @@ function findMDDPoints(equity: { time: number; value: number }[]) {
   return { mdd: mddValue, mddPeakTime, mddTroughTime };
 }
 
-export default function EquityChart({ equity, initialCapital, priceData }: EquityChartProps) {
+export default function EquityChart({ equity, initialCapital, priceData, currencySymbol = '$' }: EquityChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+
+  // Memoize data transformations to avoid recomputation on theme changes
+  const lineData = useMemo(
+    () => equity.map((point) => ({ time: point.time as UTCTimestamp, value: point.value })),
+    [equity]
+  );
+
+  const mddPoints = useMemo(() => findMDDPoints(equity), [equity]);
+
+  const priceLineData = useMemo(
+    () => priceData?.map((d) => ({ time: d.time as UTCTimestamp, value: d.close })) ?? [],
+    [priceData]
+  );
 
   useEffect(() => {
     if (!chartContainerRef.current || equity.length === 0) return;
@@ -90,14 +104,8 @@ export default function EquityChart({ equity, initialCapital, priceData }: Equit
 
     chartRef.current = chart;
 
-    // Equity 데이터 변환
-    const lineData = equity.map((point) => ({
-      time: point.time as UTCTimestamp,
-      value: point.value,
-    }));
-
-    // MDD 지점 계산
-    const { mdd, mddPeakTime, mddTroughTime } = findMDDPoints(equity);
+    // Use memoized data
+    const { mdd, mddPeakTime, mddTroughTime } = mddPoints;
 
     // Equity 곡선 (Baseline)
     const equitySeries = chart.addBaselineSeries({
@@ -112,7 +120,7 @@ export default function EquityChart({ equity, initialCapital, priceData }: Equit
       priceScaleId: 'right',
       priceFormat: {
         type: 'custom',
-        formatter: (price: number) => `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
+        formatter: (price: number) => `${currencySymbol}${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
         minMove: 1,
       },
     });
@@ -145,15 +153,11 @@ export default function EquityChart({ equity, initialCapital, priceData }: Equit
         lastValueVisible: true,
         priceFormat: {
           type: 'custom',
-          formatter: (price: number) => `$${price.toLocaleString('en-US', { maximumFractionDigits: 2 })}`,
+          formatter: (price: number) => `${currencySymbol}${price.toLocaleString('en-US', { maximumFractionDigits: 2 })}`,
           minMove: 0.01,
         },
       });
 
-      const priceLineData = priceData.map((d) => ({
-        time: d.time as UTCTimestamp,
-        value: d.close,
-      }));
       priceSeries.setData(priceLineData);
     }
 
@@ -200,7 +204,7 @@ export default function EquityChart({ equity, initialCapital, priceData }: Equit
       observer.disconnect();
       chart.remove();
     };
-  }, [equity, initialCapital, priceData]);
+  }, [equity, initialCapital, priceData, lineData, mddPoints, priceLineData, currencySymbol]);
 
   return (
     <div className="w-full h-full relative">

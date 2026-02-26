@@ -6,7 +6,7 @@ import { StrategyInfo } from '@/lib/api/client';
 interface SelectedStrategy {
   id: string;
   strategyId: string;
-  params: Record<string, number>;
+  params: Record<string, number | ''>;
 }
 
 interface CryptoStrategyCardProps {
@@ -53,7 +53,7 @@ export default function CryptoStrategyCard({
     }
   }, [selectedStrategy, strategies, onUpdate]);
 
-  const handleParamChange = useCallback((key: string, value: number) => {
+  const handleParamChange = useCallback((key: string, value: number | '') => {
     onUpdate({
       ...selectedStrategy,
       params: {
@@ -101,7 +101,7 @@ export default function CryptoStrategyCard({
                 <input
                   type="number"
                   value={selectedStrategy.params[param.key] ?? param.default}
-                  onChange={(e) => handleParamChange(param.key, Number(e.target.value))}
+                  onChange={(e) => handleParamChange(param.key, e.target.value === '' ? '' : Number(e.target.value))}
                   min={param.min}
                   max={param.max}
                   step={param.step || 1}

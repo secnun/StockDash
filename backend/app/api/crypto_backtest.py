@@ -1,5 +1,6 @@
 """Crypto Backtest API endpoints."""
 
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -8,7 +9,7 @@ from app.core.config import get_settings
 from pydantic import BaseModel, Field
 
 from app.models.backtest import BacktestResponse, DateRangeResponse, OHLCV
-from app.services.data_loader import date_to_timestamp, filter_by_date_range, load_csv_pandas, timestamp_to_date
+from app.services.data_loader import filter_by_date_range, load_csv_pandas, timestamp_to_date
 from app.strategies.crypto import CryptoStrategyRegistry
 
 router = APIRouter(prefix="/api/crypto", tags=["crypto"])
@@ -25,6 +26,9 @@ def find_crypto_data_file(coin: str, market: str) -> Path | None:
     Returns:
         Path to the data file, or None if not found
     """
+    if not re.match(r'^[a-zA-Z0-9_-]+$', coin) or not re.match(r'^[a-zA-Z0-9_-]+$', market):
+        return None
+
     settings = get_settings()
     # data_dir is ../data/stocks, so go up one level to get ../data
     base_data_dir = Path(settings.data_dir).parent
@@ -109,11 +113,6 @@ async def get_crypto_date_range(coin: str, market: str) -> DateRangeResponse:
     return DateRangeResponse(min=min_date, max=max_date)
 
 
-class CryptoBacktestRequest:
-    """Request model for crypto backtest (using query params for simplicity)."""
-    pass
-
-
 @router.post("/backtest/run")
 async def run_crypto_backtest(
     coin: str,
@@ -166,9 +165,7 @@ async def run_crypto_backtest(
         )
 
     # Filter by date range
-    start_time = date_to_timestamp(start_date) if start_date else None
-    end_time = date_to_timestamp(end_date) if end_date else None
-    df = filter_by_date_range(df, start_time, end_time)
+    df = filter_by_date_range(df, start_date, end_date)
 
     if len(df) == 0:
         raise HTTPException(
@@ -178,15 +175,11 @@ async def run_crypto_backtest(
 
     # Convert DataFrame to OHLCV list for priceData
     price_data = [
-        OHLCV(
-            time=int(row["time"]),
-            open=float(row["open"]),
-            high=float(row["high"]),
-            low=float(row["low"]),
-            close=float(row["close"]),
-            volume=float(row["volume"]),
+        OHLCV(time=int(t), open=float(o), high=float(h), low=float(l), close=float(c), volume=float(v))
+        for t, o, h, l, c, v in zip(
+            df["time"].values, df["open"].values, df["high"].values,
+            df["low"].values, df["close"].values, df["volume"].values,
         )
-        for _, row in df.iterrows()
     ]
 
     # Execute strategy
@@ -206,6 +199,15 @@ async def run_crypto_backtest(
 
     # Add priceData to result
     result.price_data = price_data
+
+    # Calculate period-independent stats (yearly or monthly)
+    try:
+        from app.services.yearly_backtest import run_period_independent
+
+        yearly_independent = run_period_independent(strategy, df, initial_capital, params)
+        result.yearly_independent = yearly_independent
+    except Exception:
+        pass  # 실패해도 메인 결과는 정상 반환
 
     return result
 
@@ -271,9 +273,7 @@ async def get_pair_price_data(
         )
 
     # Filter by date range
-    start_time = date_to_timestamp(start_date) if start_date else None
-    end_time = date_to_timestamp(end_date) if end_date else None
-    df = filter_by_date_range(df, start_time, end_time)
+    df = filter_by_date_range(df, start_date, end_date)
 
     if len(df) == 0:
         raise HTTPException(
@@ -283,14 +283,16 @@ async def get_pair_price_data(
 
     # Calculate price data with change percentages
     start_price = float(df["close"].iloc[0])
+    times = df["time"].values
+    closes = df["close"].values
     prices: list[PricePoint] = []
 
-    for _, row in df.iterrows():
-        price = float(row["close"])
+    for t, c in zip(times, closes):
+        price = float(c)
         change_percent = ((price - start_price) / start_price) * 100
         prices.append(
             PricePoint(
-                time=int(row["time"]),
+                time=int(t),
                 price=price,
                 change_percent=change_percent,
             )

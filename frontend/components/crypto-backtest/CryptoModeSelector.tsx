@@ -1,6 +1,6 @@
 'use client';
 
-export type CryptoBacktestMode = 'basic' | 'compare' | 'pairs';
+export type CryptoBacktestMode = 'basic' | 'compare';
 
 interface CryptoModeSelectorProps {
   mode: CryptoBacktestMode;
@@ -9,13 +9,17 @@ interface CryptoModeSelectorProps {
 
 export default function CryptoModeSelector({ mode, onModeChange }: CryptoModeSelectorProps) {
   return (
-    <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+    <div className={`flex gap-1 rounded-lg p-1 transition-colors ${
+      mode === 'basic'
+        ? 'bg-blue-100 dark:bg-blue-900/30'
+        : 'bg-green-100 dark:bg-green-900/30'
+    }`}>
       <button
         onClick={() => onModeChange('basic')}
         className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
           mode === 'basic'
-            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+            ? 'bg-blue-500 dark:bg-blue-600 text-white shadow-sm'
+            : 'text-green-700 dark:text-green-300 hover:text-green-900 dark:hover:text-white'
         }`}
       >
         Basic
@@ -24,21 +28,11 @@ export default function CryptoModeSelector({ mode, onModeChange }: CryptoModeSel
         onClick={() => onModeChange('compare')}
         className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
           mode === 'compare'
-            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+            ? 'bg-green-500 dark:bg-green-600 text-white shadow-sm'
+            : 'text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-white'
         }`}
       >
         Compare
-      </button>
-      <button
-        onClick={() => onModeChange('pairs')}
-        className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-          mode === 'pairs'
-            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-        }`}
-      >
-        Pairs
       </button>
     </div>
   );

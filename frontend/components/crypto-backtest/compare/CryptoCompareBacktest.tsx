@@ -24,7 +24,7 @@ interface Market {
 interface SelectedStrategy {
   id: string;
   strategyId: string;
-  params: Record<string, number>;
+  params: Record<string, number | ''>;
 }
 
 interface CryptoCompareBacktestProps {

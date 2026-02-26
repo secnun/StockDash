@@ -21,6 +21,11 @@ export interface ChartTheme {
     fillBottom: string;
     histogram: string;
   };
+  cash: {
+    line: string;
+    fill: string;
+    fillBottom: string;
+  };
   candle: {
     up: string;
     down: string;
@@ -57,6 +62,11 @@ export const lightTheme: ChartTheme = {
     fillBottom: 'rgba(239, 83, 80, 0.0)',
     histogram: '#ef4444',
   },
+  cash: {
+    line: '#f59e0b',
+    fill: 'rgba(245, 158, 11, 0.4)',
+    fillBottom: 'rgba(245, 158, 11, 0.0)',
+  },
   candle: {
     up: '#26a69a',
     down: '#ef5350',
@@ -92,6 +102,11 @@ export const darkTheme: ChartTheme = {
     fill: 'rgba(248, 113, 113, 0.4)',
     fillBottom: 'rgba(248, 113, 113, 0.0)',
     histogram: '#f87171',
+  },
+  cash: {
+    line: '#fbbf24',
+    fill: 'rgba(251, 191, 36, 0.4)',
+    fillBottom: 'rgba(251, 191, 36, 0.0)',
   },
   candle: {
     up: '#4ade80',
@@ -142,3 +157,13 @@ export const STRATEGY_COLORS = [
 export function getStrategyColor(index: number): string {
   return STRATEGY_COLORS[index % STRATEGY_COLORS.length];
 }
+
+/**
+ * 스위칭 슬롯별 구간 배경색 (차트용, 반투명)
+ */
+export const SLOT_ZONE_COLORS: Record<string, { line: string; top: string; bottom: string }> = {
+  A: { line: '#22c55e', top: 'rgba(34, 197, 94, 0.08)', bottom: 'rgba(34, 197, 94, 0.02)' },
+  B: { line: '#3b82f6', top: 'rgba(59, 130, 246, 0.08)', bottom: 'rgba(59, 130, 246, 0.02)' },
+  C: { line: '#f97316', top: 'rgba(249, 115, 22, 0.08)', bottom: 'rgba(249, 115, 22, 0.02)' },
+  D: { line: '#a855f7', top: 'rgba(168, 85, 247, 0.08)', bottom: 'rgba(168, 85, 247, 0.02)' },
+};

@@ -10,9 +10,10 @@ interface MultiEquityChartProps {
   initialCapital: number;
   priceData?: OHLCV[];
   tickerName?: string;
+  currencySymbol?: string;
 }
 
-export default function MultiEquityChart({ results, initialCapital, priceData, tickerName }: MultiEquityChartProps) {
+export default function MultiEquityChart({ results, initialCapital, priceData, tickerName, currencySymbol = '$' }: MultiEquityChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
@@ -73,7 +74,7 @@ export default function MultiEquityChart({ results, initialCapital, priceData, t
         title: tickerName || 'Price',
         priceFormat: {
           type: 'custom',
-          formatter: (price: number) => `$${price.toLocaleString('en-US', { maximumFractionDigits: 2 })}`,
+          formatter: (price: number) => `${currencySymbol}${price.toLocaleString('en-US', { maximumFractionDigits: 2 })}`,
           minMove: 0.01,
         },
       });
@@ -96,7 +97,7 @@ export default function MultiEquityChart({ results, initialCapital, priceData, t
         title: compareResult.strategyName,
         priceFormat: {
           type: 'custom',
-          formatter: (price: number) => `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
+          formatter: (price: number) => `${currencySymbol}${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
           minMove: 1,
         },
       });
@@ -173,7 +174,7 @@ export default function MultiEquityChart({ results, initialCapital, priceData, t
       observer.disconnect();
       chart.remove();
     };
-  }, [results, initialCapital, priceData, tickerName]);
+  }, [results, initialCapital, priceData, tickerName, currencySymbol]);
 
   return (
     <div className="w-full h-full relative">

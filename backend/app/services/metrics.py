@@ -78,14 +78,15 @@ def _calculate_win_rate(trades: list[Trade]) -> float:
 
 
 def _get_trade_pairs(trades: list[Trade]) -> list[tuple[Trade, Trade]]:
-    """Extract buy-sell pairs from trades."""
+    """Extract buy-sell pairs from trades using FIFO matching."""
     pairs: list[tuple[Trade, Trade]] = []
+    buy_stack: list[Trade] = []
 
-    i = 0
-    while i < len(trades) - 1:
-        if trades[i].type == "buy" and trades[i + 1].type == "sell":
-            pairs.append((trades[i], trades[i + 1]))
-        i += 2
+    for trade in trades:
+        if trade.type == "buy":
+            buy_stack.append(trade)
+        elif trade.type == "sell" and buy_stack:
+            pairs.append((buy_stack.pop(0), trade))
 
     return pairs
 
@@ -106,8 +107,11 @@ def _calculate_mdd(equity_values: np.ndarray) -> float:
     # Running maximum
     running_max = np.maximum.accumulate(equity_values)
 
+    # Guard against zero running_max (edge case)
+    safe_max = np.where(running_max == 0, 1, running_max)
+
     # Drawdown at each point
-    drawdowns = (running_max - equity_values) / running_max * 100
+    drawdowns = (running_max - equity_values) / safe_max * 100
 
     return float(np.max(drawdowns))
 
@@ -175,24 +179,3 @@ def _calculate_sharpe_ratio(equity_values: np.ndarray) -> float:
     return float(sharpe)
 
 
-def calculate_daily_returns(
-    equity: list[dict[str, float]],
-) -> list[dict[str, float]]:
-    """
-    Calculate daily returns from equity curve.
-
-    Args:
-        equity: List of equity points
-
-    Returns:
-        List of daily returns {time, return}
-    """
-    if len(equity) < 2:
-        return []
-
-    values = np.array([e["value"] for e in equity], dtype=np.float64)
-    times = np.array([e["time"] for e in equity], dtype=np.int64)
-
-    returns = np.diff(values) / values[:-1] * 100
-
-    return [{"time": int(times[i + 1]), "return": float(returns[i])} for i in range(len(returns))]

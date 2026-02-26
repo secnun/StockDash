@@ -185,6 +185,7 @@ export default function CryptoPairsBacktest({
   const [crosshairValues, setCrosshairValues] = useState<Map<string, number>>(new Map());
   const [backendAvailable, setBackendAvailable] = useState(true);
   const [rocPeriod, setRocPeriod] = useState(1); // ROC 기간 (일)
+  const [rocPeriodInput, setRocPeriodInput] = useState<number | ''>(1);
 
   // 페어 추가
   const addPair = useCallback(() => {
@@ -360,10 +361,24 @@ export default function CryptoPairsBacktest({
             </label>
             <input
               type="number"
-              value={rocPeriod}
+              value={rocPeriodInput}
               min={1}
               max={30}
-              onChange={(e) => setRocPeriod(Math.max(1, Math.min(30, parseInt(e.target.value) || 1)))}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '') {
+                  setRocPeriodInput('');
+                } else {
+                  const num = Number(raw);
+                  if (!isNaN(num)) setRocPeriodInput(num);
+                }
+              }}
+              onBlur={() => {
+                const val = typeof rocPeriodInput === 'number' ? rocPeriodInput : 1;
+                const clamped = Math.max(1, Math.min(30, val));
+                setRocPeriodInput(clamped);
+                setRocPeriod(clamped);
+              }}
               className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>

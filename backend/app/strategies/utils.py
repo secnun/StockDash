@@ -11,7 +11,18 @@ from app.models.backtest import Trade
 
 
 # ========== 상수 ==========
-DEFAULT_FEE_RATE = 0.001  # 0.1%
+DEFAULT_FEE_RATE = 0.001  # 0.1% (크립토/fallback용)
+FEE_RATE_US = 0.0025      # 0.25% (미장)
+FEE_RATE_KR = 0.00015     # 0.015% (국내장)
+
+
+def get_fee_rate_for_market(market: str) -> float:
+    """마켓별 수수료율 반환."""
+    if market == "us":
+        return FEE_RATE_US
+    if market in ("kr", "ko"):
+        return FEE_RATE_KR
+    return DEFAULT_FEE_RATE
 
 
 # ========== 수수료 계산 ==========

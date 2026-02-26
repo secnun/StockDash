@@ -8,9 +8,6 @@ export interface OHLCV {
   volume: number;
 }
 
-// 매매 신호 타입
-export type Signal = 'buy' | 'sell' | 'hold';
-
 // 거래 기록
 export interface Trade {
   time: number;
@@ -23,12 +20,31 @@ export interface Trade {
   tierSlots?: string; // 현재 보유 티어 상태 (예: "1,2,3")
 }
 
+// 기간별 독립 백테스트 통계
+export interface PeriodIndependentStats {
+  label: string;       // "2020" (연도) 또는 "2024-03" (월)
+  startValue: number;
+  endValue: number;
+  totalReturn: number;
+  mdd: number;
+  totalTrades: number;
+}
+
+// 독립 백테스트 결과 (시드 리셋 + 시드 이월)
+export interface PeriodIndependentResult {
+  granularity: 'yearly' | 'monthly';
+  seedReset: PeriodIndependentStats[];
+  seedCarry: PeriodIndependentStats[];
+}
+
 // 백테스트 결과
 export interface BacktestResult {
   trades: Trade[];
   equity: { time: number; value: number }[];
+  cash?: { time: number; value: number }[];
   metrics: PerformanceMetrics;
   priceData?: OHLCV[]; // 백엔드 응답에 포함된 가격 데이터
+  yearlyIndependent?: PeriodIndependentResult;
 }
 
 // 성과 지표
@@ -43,37 +59,6 @@ export interface PerformanceMetrics {
 
 // 파라미터 값 타입
 export type ParameterValue = number | string | boolean;
-
-// 전략 파라미터 정의
-export interface ParameterDefinition {
-  key: string;
-  label: string;
-  type: 'number' | 'select' | 'date';
-  default: ParameterValue;
-  min?: number;
-  max?: number;
-  step?: number;
-  options?: { label: string; value: ParameterValue }[];
-}
-
-// 전략 인터페이스
-export interface Strategy {
-  id: string;
-  name: string;
-  description: string;
-  parameters: ParameterDefinition[];
-  execute: (data: OHLCV[], params: Record<string, ParameterValue>) => BacktestResult;
-}
-
-// 백테스트 설정
-export interface BacktestConfig {
-  strategyId: string;
-  dataFile: string;
-  startDate?: string;
-  endDate?: string;
-  initialCapital: number;
-  parameters: Record<string, ParameterValue>;
-}
 
 // Compare 모드용 타입
 export interface SelectedStrategy {

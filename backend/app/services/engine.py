@@ -3,7 +3,6 @@
 from typing import Literal
 
 import numpy as np
-import pandas as pd
 
 from app.models.backtest import Trade
 
@@ -21,6 +20,7 @@ class BacktestEngine:
         self.position = 0  # Quantity held
         self.trades: list[Trade] = []
         self.equity: list[dict[str, float]] = []
+        self.cash_history: list[dict[str, float]] = []
         self._avg_cost = 0.0  # Average cost basis for position
 
     def buy(self, time: int, price: float, quantity: int | None = None) -> None:
@@ -115,12 +115,14 @@ class BacktestEngine:
         """Record equity curve point."""
         value = self.get_portfolio_value(current_price)
         self.equity.append({"time": time, "value": value})
+        self.cash_history.append({"time": time, "value": self.cash})
 
     def get_results(self) -> dict:
         """Get backtest results."""
         return {
             "trades": self.trades,
             "equity": self.equity,
+            "cash": self.cash_history,
         }
 
     def has_position(self) -> bool:
@@ -134,57 +136,11 @@ class BacktestEngine:
         self.position = 0
         self.trades = []
         self.equity = []
+        self.cash_history = []
         self._avg_cost = 0.0
 
 
 Signal = Literal["buy", "sell", "hold"]
-SignalGenerator = type["SignalGeneratorBase"]
-
-
-class SignalGeneratorBase:
-    """Base class for signal generators."""
-
-    def generate(self, data: pd.DataFrame, index: int) -> Signal:
-        """Generate trading signal for given index."""
-        raise NotImplementedError
-
-
-def run_backtest(
-    data: pd.DataFrame,
-    signal_generator: SignalGeneratorBase,
-    initial_capital: float,
-) -> dict:
-    """
-    Run backtest with given data and signal generator.
-
-    Args:
-        data: OHLCV DataFrame
-        signal_generator: Signal generator instance
-        initial_capital: Starting capital
-
-    Returns:
-        Dict with trades and equity
-    """
-    engine = BacktestEngine(initial_capital)
-
-    times = data["time"].values
-    closes = data["close"].values
-
-    for i in range(len(data)):
-        signal = signal_generator.generate(data, i)
-
-        if signal == "buy" and not engine.has_position():
-            engine.buy(int(times[i]), float(closes[i]))
-        elif signal == "sell" and engine.has_position():
-            engine.sell(int(times[i]), float(closes[i]))
-
-        engine.record_equity(int(times[i]), float(closes[i]))
-
-    # Close position at end
-    if engine.has_position() and len(data) > 0:
-        engine.sell(int(times[-1]), float(closes[-1]))
-
-    return engine.get_results()
 
 
 def run_backtest_vectorized(
@@ -209,7 +165,7 @@ def run_backtest_vectorized(
     """
     n = len(times)
     if n == 0:
-        return {"trades": [], "equity": []}
+        return {"trades": [], "equity": [], "cash": []}
 
     # State tracking
     cash = initial_capital
@@ -217,6 +173,7 @@ def run_backtest_vectorized(
     avg_cost = 0.0
     trades: list[Trade] = []
     equity_values = np.zeros(n, dtype=np.float64)
+    cash_values = np.zeros(n, dtype=np.float64)
 
     for i in range(n):
         time = int(times[i])
@@ -257,8 +214,9 @@ def run_backtest_vectorized(
             position = 0
             avg_cost = 0.0
 
-        # Record equity
+        # Record equity and cash
         equity_values[i] = cash + position * price
+        cash_values[i] = cash
 
     # Close position at end
     if position > 0:
@@ -276,7 +234,9 @@ def run_backtest_vectorized(
             )
         )
         equity_values[-1] = cash
+        cash_values[-1] = cash
 
     equity = [{"time": int(times[i]), "value": float(equity_values[i])} for i in range(n)]
+    cash_history = [{"time": int(times[i]), "value": float(cash_values[i])} for i in range(n)]
 
-    return {"trades": trades, "equity": equity}
+    return {"trades": trades, "equity": equity, "cash": cash_history}

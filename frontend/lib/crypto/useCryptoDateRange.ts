@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { fetchCryptoDateRange } from '@/lib/api/client';
 
 export interface CryptoDateRange {
   min: string;
@@ -45,14 +46,7 @@ export function useCryptoDateRange(coin: string, market: string): UseCryptoDateR
     setError(null);
 
     try {
-      const response = await fetch(`/api/crypto/date-range?coin=${encodeURIComponent(coin)}&market=${encodeURIComponent(market)}`);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
-      const data: CryptoDateRange = await response.json();
+      const data = await fetchCryptoDateRange(coin, market);
 
       // 캐시에 저장
       cacheRef.current[cacheKey] = data;

@@ -7,9 +7,10 @@ import { calculateYearlyStats, calculateTotalStats, YearlyStats } from '@/lib/ba
 interface YearlyStatsTableProps {
   equity: { time: number; value: number }[];
   trades: Trade[];
+  currencySymbol?: string;
 }
 
-export default function YearlyStatsTable({ equity, trades }: YearlyStatsTableProps) {
+export default function YearlyStatsTable({ equity, trades, currencySymbol = '$' }: YearlyStatsTableProps) {
   const yearlyStats = useMemo(() => calculateYearlyStats(equity, trades), [equity, trades]);
   const totalStats = useMemo(() => calculateTotalStats(equity, trades), [equity, trades]);
 
@@ -17,11 +18,11 @@ export default function YearlyStatsTable({ equity, trades }: YearlyStatsTablePro
 
   const formatValue = (value: number): string => {
     if (value >= 1000000) {
-      return `$${(value / 1000000).toFixed(2)}M`;
+      return `${currencySymbol}${(value / 1000000).toFixed(2)}M`;
     } else if (value >= 1000) {
-      return `$${(value / 1000).toFixed(1)}K`;
+      return `${currencySymbol}${(value / 1000).toFixed(1)}K`;
     }
-    return `$${value.toFixed(0)}`;
+    return `${currencySymbol}${value.toFixed(0)}`;
   };
 
   const getReturnColor = (returnValue: number): string => {

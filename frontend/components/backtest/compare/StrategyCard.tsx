@@ -3,6 +3,7 @@
 import { useCallback } from 'react';
 import { ParameterValue, SelectedStrategy } from '@/types/backtest';
 import { StrategyInfo } from '@/lib/api/client';
+import SplitRatioEditor from '@/components/backtest/SplitRatioEditor';
 
 interface StrategyCardProps {
   selectedStrategy: SelectedStrategy;
@@ -34,6 +35,14 @@ export default function StrategyCard({
       newStrategy.parameters.forEach((param) => {
         defaultParams[param.key] = param.default;
       });
+      // 커스텀 전략: 기본 splitPct 초기화
+      if (strategyId === 'ddeolsapro_custom') {
+        const divisions = (defaultParams.divisions as number) || 6;
+        const defaultPct = Math.round((100 / divisions) * 100) / 100;
+        for (let i = 1; i <= divisions; i++) {
+          defaultParams[`splitPct${i}`] = defaultPct;
+        }
+      }
       onUpdate({
         ...selectedStrategy,
         strategyId,
@@ -90,7 +99,12 @@ export default function StrategyCard({
         {/* 파라미터 */}
         {strategy && (
           <div className="flex flex-wrap gap-2 items-center flex-1">
-            {strategy.parameters.map((param) => (
+            {strategy.parameters
+              .filter((param) =>
+                selectedStrategy.strategyId !== 'ddeolsapro_custom' ||
+                (!param.key.startsWith('splitPct') && param.key !== 'divisions')
+              )
+              .map((param) => (
               <div key={param.key} className="flex items-center gap-1">
                 <label className="text-xs text-gray-500 dark:text-gray-400">{param.label}:</label>
                 {param.type === 'number' && (
@@ -104,6 +118,20 @@ export default function StrategyCard({
                     className="w-16 px-1.5 py-0.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     disabled={disabled}
                   />
+                )}
+                {param.type === 'select' && param.options && (
+                  <select
+                    value={String(selectedStrategy.params[param.key] ?? param.default)}
+                    onChange={(e) => handleParamChange(param.key, e.target.value)}
+                    className="w-16 px-1.5 py-0.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    disabled={disabled}
+                  >
+                    {param.options.map((opt) => (
+                      <option key={String(opt.value)} value={String(opt.value)}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
                 )}
               </div>
             ))}
@@ -122,6 +150,37 @@ export default function StrategyCard({
           </svg>
         </button>
       </div>
+
+      {/* 분할 비율 에디터 (커스텀 전략 전용) */}
+      {selectedStrategy.strategyId === 'ddeolsapro_custom' && (
+        <div className="mt-2">
+          <SplitRatioEditor
+            divisions={(selectedStrategy.params.divisions as number) ?? 6}
+            splitPcts={Object.fromEntries(
+              Object.entries(selectedStrategy.params)
+                .filter(([k]) => k.startsWith('splitPct'))
+                .map(([k, v]) => [k, v as number])
+            )}
+            onDivisionsChange={(newDiv) => {
+              const defaultPct = Math.round((100 / newDiv) * 100) / 100;
+              const newParams: Record<string, ParameterValue> = {};
+              Object.entries(selectedStrategy.params).forEach(([k, v]) => {
+                if (!k.startsWith('splitPct') && k !== 'divisions') {
+                  newParams[k] = v;
+                }
+              });
+              newParams.divisions = newDiv;
+              for (let i = 1; i <= newDiv; i++) {
+                newParams[`splitPct${i}`] = defaultPct;
+              }
+              onUpdate({ ...selectedStrategy, params: newParams });
+            }}
+            onSplitPctChange={(key, value) => handleParamChange(key, value)}
+            disabled={disabled}
+            compact
+          />
+        </div>
+      )}
     </div>
   );
 }

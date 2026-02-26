@@ -5,7 +5,6 @@ import CryptoModeSelector, { CryptoBacktestMode } from '@/components/crypto-back
 import CryptoCommonSettings from '@/components/crypto-backtest/CryptoCommonSettings';
 import CryptoBasicBacktest from '@/components/crypto-backtest/basic/CryptoBasicBacktest';
 import CryptoCompareBacktest from '@/components/crypto-backtest/compare/CryptoCompareBacktest';
-import CryptoPairsBacktest from '@/components/crypto-backtest/pairs/CryptoPairsBacktest';
 import { useCryptoDateRange } from '@/lib/crypto/useCryptoDateRange';
 
 interface Coin {
@@ -61,45 +60,32 @@ export default function CryptoBacktestPage() {
     }
   }, [dateRange]);
 
-  // Pairs 모드는 공통 설정 불필요
-  const showCommonSettings = mode !== 'pairs';
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {/* 헤더 */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">암호화폐 백테스팅</h1>
+        </div>
+
+        {/* 모드 탭 + 설명 */}
+        <div className="flex items-center gap-3 mb-4">
           <CryptoModeSelector mode={mode} onModeChange={setMode} />
+          <div className={`flex-1 rounded-lg p-3 border ${mode === 'basic' ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'}`}>
+            <p className={`text-sm ${mode === 'basic' ? 'text-blue-800 dark:text-blue-200' : 'text-green-800 dark:text-green-200'}`}>
+              {mode === 'basic' && (
+                <><strong>Basic 모드:</strong> 단일 전략을 선택하여 백테스트를 수행합니다.</>
+              )}
+              {mode === 'compare' && (
+                <><strong>Compare 모드:</strong> 여러 전략을 동시에 비교, 분석합니다.</>
+              )}
+            </p>
+          </div>
         </div>
 
-        {/* 설명 */}
-        <div className={`rounded-lg p-3 mb-4 border ${
-          mode === 'pairs'
-            ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-            : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-        }`}>
-          <p className={`text-sm ${
-            mode === 'pairs'
-              ? 'text-red-800 dark:text-red-200'
-              : 'text-blue-800 dark:text-blue-200'
-          }`}>
-            {mode === 'basic' && (
-              <><strong>Basic 모드:</strong> 단일 전략을 선택하여 백테스트를 수행합니다.</>
-            )}
-            {mode === 'compare' && (
-              <><strong>Compare 모드:</strong> 여러 전략을 동시에 비교, 분석합니다.</>
-            )}
-            {mode === 'pairs' && (
-              <><strong>Pairs 모드 (Beta):</strong> 동일 코인의 마켓별 가격을 비교, 분석합니다. 현재 개발 중인 베타 버전입니다.</>
-            )}
-          </p>
-        </div>
-
-        {/* 공통 설정 (Pairs 모드 제외) */}
-        {showCommonSettings && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
-            <CryptoCommonSettings
+        {/* 공통 설정 */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
+          <CryptoCommonSettings
               coins={coins}
               selectedCoin={selectedCoin}
               onCoinChange={setSelectedCoin}
@@ -117,8 +103,7 @@ export default function CryptoBacktestPage() {
               onApplyFeeChange={setApplyFee}
               isDateRangeLoading={isDateRangeLoading}
             />
-          </div>
-        )}
+        </div>
 
         {/* 모드별 컨텐츠 */}
         {mode === 'basic' && (
@@ -143,17 +128,6 @@ export default function CryptoBacktestPage() {
             startDate={startDate}
             endDate={endDate}
             applyFee={applyFee}
-          />
-        )}
-        {mode === 'pairs' && (
-          <CryptoPairsBacktest
-            coins={coins}
-            markets={markets}
-            dateRange={dateRange ?? { min: '', max: '' }}
-            startDate={startDate}
-            endDate={endDate}
-            onStartDateChange={setStartDate}
-            onEndDateChange={setEndDate}
           />
         )}
       </div>

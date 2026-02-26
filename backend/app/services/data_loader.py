@@ -39,26 +39,28 @@ def load_csv_pandas(file_path: Path) -> pd.DataFrame:
 
 def filter_by_date_range(
     df: pd.DataFrame,
-    start_time: int | None = None,
-    end_time: int | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> pd.DataFrame:
     """
     Filter DataFrame by date range.
 
     Args:
         df: OHLCV DataFrame
-        start_time: Start timestamp (optional)
-        end_time: End timestamp (optional)
+        start_date: Start date string YYYY-MM-DD (optional)
+        end_date: End date string YYYY-MM-DD (optional)
 
     Returns:
         Filtered DataFrame
     """
     mask = pd.Series(True, index=df.index)
 
-    if start_time is not None:
-        mask &= df["time"] >= start_time
-    if end_time is not None:
-        mask &= df["time"] <= end_time
+    if start_date is not None or end_date is not None:
+        dates = pd.to_datetime(df["time"], unit="s", utc=True).dt.strftime("%Y-%m-%d")
+        if start_date is not None:
+            mask &= dates >= start_date
+        if end_date is not None:
+            mask &= dates <= end_date
 
     return df[mask].copy()
 
@@ -70,4 +72,4 @@ def timestamp_to_date(timestamp: int) -> str:
 
 def date_to_timestamp(date_string: str) -> int:
     """Convert YYYY-MM-DD string to Unix timestamp."""
-    return int(pd.Timestamp(date_string).timestamp())
+    return int(pd.Timestamp(date_string, tz="UTC").timestamp())

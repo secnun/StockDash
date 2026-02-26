@@ -88,7 +88,7 @@ export default function CryptoCommonSettings({
         <input
           type="text"
           inputMode="numeric"
-          value={initialCapitalStr}
+          value={initialCapitalStr ? Number(initialCapitalStr).toLocaleString() : ''}
           onChange={(e) => {
             const value = e.target.value.replace(/[^0-9]/g, '');
             onInitialCapitalChange(value);

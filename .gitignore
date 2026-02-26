@@ -59,6 +59,7 @@ CLAUDE.md
 /backend/data/stocks/*.csv
 /backend/app/strategies/ddeolsapro*.py
 /backend/app/strategies/moomae*.py
+/backend/app/strategies/jongjong5.py
 /backend/.pytest_cache/
 /backend/.mypy_cache/
 /backend/.coverage

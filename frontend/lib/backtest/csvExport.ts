@@ -2,8 +2,15 @@ import { BacktestResult, Trade } from '@/types/backtest';
 
 /**
  * 거래 내역을 CSV 문자열로 변환
+ * @param trades 거래 내역
+ * @param cash 현금 잔액 시계열 (옵션)
+ * @param equity 자산 가치 시계열 (옵션)
  */
-export function tradesToCSV(trades: Trade[]): string {
+export function tradesToCSV(
+  trades: Trade[],
+  cash?: { time: number; value: number }[],
+  equity?: { time: number; value: number }[]
+): string {
   const headers = [
     'Date',
     'Type',
@@ -12,10 +19,38 @@ export function tradesToCSV(trades: Trade[]): string {
     'Price',
     'AvgCost',
     'TierSlots',
+    'CashAfter',
+    'CashRatio(%)',
   ];
+
+  // cash/equity 배열을 time 기준으로 빠르게 조회하기 위한 Map 생성
+  const cashMap = new Map<number, number>();
+  const equityMap = new Map<number, number>();
+
+  if (cash) {
+    cash.forEach((c) => cashMap.set(c.time, c.value));
+  }
+  if (equity) {
+    equity.forEach((e) => equityMap.set(e.time, e.value));
+  }
 
   const rows = trades.map((trade) => {
     const date = new Date(trade.time * 1000).toISOString().split('T')[0];
+
+    // 거래 시점의 현금과 자산 가치 조회
+    const cashValue = cashMap.get(trade.time);
+    const equityValue = equityMap.get(trade.time);
+
+    // 현금 비율 계산
+    let cashAfter = '-';
+    let cashRatio = '-';
+
+    if (cashValue !== undefined) {
+      cashAfter = cashValue.toFixed(2);
+      if (equityValue !== undefined && equityValue > 0) {
+        cashRatio = ((cashValue / equityValue) * 100).toFixed(2);
+      }
+    }
 
     return [
       date,
@@ -25,6 +60,8 @@ export function tradesToCSV(trades: Trade[]): string {
       trade.price.toFixed(4),
       trade.costBasis?.toFixed(4) || '-',
       trade.tierSlots || '-',
+      cashAfter,
+      cashRatio,
     ].join(',');
   });
 
@@ -74,7 +111,7 @@ export function backestResultToCSV(
   initialCapital: number
 ): string {
   const summary = metricsToCSV(result, strategyName, ticker, startDate, endDate, initialCapital);
-  const trades = tradesToCSV(result.trades);
+  const trades = tradesToCSV(result.trades, result.cash, result.equity);
 
   return `=== Performance Summary ===\n${summary}\n\n=== Trade History ===\n${trades}`;
 }
@@ -83,11 +120,12 @@ export function backestResultToCSV(
  * CSV 파일 다운로드
  */
 export function downloadCSV(content: string, filename: string): void {
+  const safeFilename = filename.replace(/[^a-zA-Z0-9가-힣\-_.]/g, '_');
   const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = filename;
+  link.download = safeFilename;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

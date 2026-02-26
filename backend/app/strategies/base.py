@@ -85,6 +85,9 @@ class Strategy(ABC):
             equity=[
                 {"time": e["time"], "value": e["value"]} for e in results["equity"]
             ],
+            cash=[
+                {"time": c["time"], "value": c["value"]} for c in results["cash"]
+            ],
             metrics=metrics,
             execution_time=execution_time,
         )
@@ -99,6 +102,8 @@ class TierPosition:
     buy_day_index: int  # Buy day index (for stop-loss calculation)
     quantity: int  # Quantity held (integer)
     buy_value: float  # Total buy cost including fees
+    target_profit: float = 0.0  # 매수 시점의 목표 수익률 (carry 스위칭용)
+    stop_loss_days: int = 0  # 매수 시점의 손절 기간 (carry 스위칭용)
 
 
 class TieredStrategy(ABC):
@@ -140,6 +145,7 @@ class TieredStrategy(ABC):
         equity: list[dict[str, float]],
         initial_capital: float,
         start_time: float,
+        cash_history: list[dict[str, float]] | None = None,
     ) -> BacktestResponse:
         """Helper to build BacktestResponse with metrics."""
         import time as time_module
@@ -155,6 +161,7 @@ class TieredStrategy(ABC):
         return BacktestResponse(
             trades=trades,
             equity=[EquityPoint(time=e["time"], value=e["value"]) for e in equity],
+            cash=[EquityPoint(time=c["time"], value=c["value"]) for c in (cash_history or [])],
             metrics=metrics,
             execution_time=execution_time,
         )

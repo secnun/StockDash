@@ -32,6 +32,7 @@ export interface BacktestExecuteParams {
   initialCapital: number;
   parameters: Record<string, ParameterValue>;
   applyFee?: boolean;
+  market?: string;
 }
 
 export interface UseBackendBacktestReturn {
@@ -48,7 +49,7 @@ export interface UseBackendBacktestReturn {
   /** Get list of available strategies from backend */
   getStrategies: () => Promise<StrategyInfo[]>;
   /** Get date range for a ticker */
-  getDateRange: (tickerId: string) => Promise<DateRangeResponse>;
+  getDateRange: (tickerId: string, market?: string) => Promise<DateRangeResponse>;
   /** Manually trigger health check */
   checkHealth: () => Promise<boolean>;
 }
@@ -132,6 +133,7 @@ export function useBackendBacktest(
         initialCapital,
         parameters,
         applyFee = true,
+        market,
       } = params;
 
       try {
@@ -143,6 +145,7 @@ export function useBackendBacktest(
           initialCapital,
           parameters,
           applyFee,
+          market,
         });
         setIsLoading(false);
         return result;
@@ -172,13 +175,13 @@ export function useBackendBacktest(
   }, [isBackendAvailable]);
 
   // Get date range for a ticker
-  const getDateRangeFunc = useCallback(async (tickerId: string): Promise<DateRangeResponse> => {
+  const getDateRangeFunc = useCallback(async (tickerId: string, market?: string): Promise<DateRangeResponse> => {
     if (!isBackendAvailable) {
       throw new Error('서버 연결 불가');
     }
 
     try {
-      return await fetchDateRange(tickerId);
+      return await fetchDateRange(tickerId, market);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '날짜 범위 조회 실패';
       throw new Error(errorMessage);
