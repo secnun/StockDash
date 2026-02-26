@@ -68,13 +68,20 @@ def _recalc_scores(r: dict) -> None:
     std_ret = stdev(returns) if len(returns) > 1 else 0.0
     max_mdd = max(mdds)
 
+    # positive_ratio 거듭제곱 패널티 (α=2): 마이너스 연도가 많을수록 점수 급감
+    negative_years = sum(1 for yr in yearly if yr["total_return"] <= 0)
+    total_years = len(yearly)
+    positive_ratio = (total_years - negative_years) / total_years
+
     if max_mdd == 0:
-        score = avg_ret * 100
+        base_score = avg_ret * 100
     elif avg_ret == 0:
-        score = 0.0
+        base_score = 0.0
     else:
         cv = std_ret / abs(avg_ret)
-        score = avg_ret / (max_mdd * (1 + cv))
+        base_score = avg_ret / (max_mdd * (1 + cv))
+
+    score = base_score * (positive_ratio ** 2)
 
     r["avg_return"] = round(avg_ret, 2)
     r["std_return"] = round(std_ret, 2)
@@ -452,7 +459,7 @@ async def run_optimization(request: OptimizerRequest) -> EventSourceResponse:
             )
             yield {
                 "event": "progress",
-                "data": progress.model_dump_json(),
+                "data": progress.model_dump_json(by_alias=True),
             }
 
         # Run new combinations only
@@ -529,7 +536,7 @@ async def run_optimization(request: OptimizerRequest) -> EventSourceResponse:
                         )
                         yield {
                             "event": "progress",
-                            "data": progress.model_dump_json(),
+                            "data": progress.model_dump_json(by_alias=True),
                         }
 
                     # 내부 루프에서 취소된 경우 외부 루프도 종료

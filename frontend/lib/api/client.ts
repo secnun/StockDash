@@ -461,6 +461,7 @@ export async function runOptimizerAPI(
 
   const decoder = new TextDecoder();
   let buffer = '';
+  let currentEvent = '';
 
   try {
     while (true) {
@@ -472,7 +473,6 @@ export async function runOptimizerAPI(
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
-      let currentEvent = '';
       for (const line of lines) {
         if (line.startsWith('event:')) {
           currentEvent = line.slice(6).trim();
@@ -499,6 +499,9 @@ export async function runOptimizerAPI(
                   break;
                 case 'cancelled':
                   callbacks.onCancelled?.(parsed as OptimizerCancelled);
+                  break;
+                case 'error':
+                  callbacks.onError?.(new Error((parsed as { message?: string }).message ?? 'Optimizer error'));
                   break;
               }
             } catch (e) {
@@ -574,6 +577,7 @@ export async function runSwitchingOptimizerAPI(
 
   const decoder = new TextDecoder();
   let buffer = '';
+  let currentEvent = '';
 
   try {
     while (true) {
@@ -585,7 +589,6 @@ export async function runSwitchingOptimizerAPI(
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
-      let currentEvent = '';
       for (const line of lines) {
         if (line.startsWith('event:')) {
           currentEvent = line.slice(6).trim();

@@ -124,14 +124,21 @@ def run_yearly_backtest(
         # Max MDD across all years
         max_mdd = max(r["mdd"] for r in yearly_results)
 
-        # Composite score: avg_return / (max_mdd * (1 + cv))
+        # Composite score: base_score * (positive_ratio ** 2)
+        # positive_ratio 거듭제곱 패널티: 마이너스 연도가 많을수록 점수 급감
+        negative_years = sum(1 for r in yearly_results if r["total_return"] <= 0)
+        total_years = len(yearly_results)
+        positive_ratio = (total_years - negative_years) / total_years
+
         if max_mdd == 0:
-            composite_score = avg_return * 100
+            base_score = avg_return * 100
         elif avg_return == 0:
-            composite_score = 0.0
+            base_score = 0.0
         else:
             cv = std_return / abs(avg_return)
-            composite_score = avg_return / (max_mdd * (1 + cv))
+            base_score = avg_return / (max_mdd * (1 + cv))
+
+        composite_score = base_score * (positive_ratio ** 2)
 
         return YearlyBacktestResult(
             yearly_results=yearly_results,
