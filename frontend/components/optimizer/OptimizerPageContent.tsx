@@ -19,6 +19,7 @@ import {
   OptimizerCancelled,
 } from '@/lib/api/client';
 import ResultTabs, { ResultTabMode } from '@/components/optimizer/ResultTabs';
+import RankingFilterBar, { RankingFilters, defaultFilters } from '@/components/optimizer/RankingFilterBar';
 
 interface Ticker {
   id: string;
@@ -87,6 +88,9 @@ export default function OptimizerPageContent({ market, title }: OptimizerPageCon
 
   // Previous rank snapshot for rank change tracking
   const [previousRankMap, setPreviousRankMap] = useState<Map<string, number> | null>(null);
+
+  // Ranking filters
+  const [rankingFilters, setRankingFilters] = useState<RankingFilters>(defaultFilters);
 
   // Warning confirmation for exceeding max combinations
   const [showCombinationWarning, setShowCombinationWarning] = useState(false);
@@ -308,6 +312,7 @@ export default function OptimizerPageContent({ market, title }: OptimizerPageCon
 
   useEffect(() => {
     setPreviousRankMap(null);
+    setRankingFilters(defaultFilters);
     loadCachedResults();
   }, [loadCachedResults]);
 
@@ -484,14 +489,49 @@ export default function OptimizerPageContent({ market, title }: OptimizerPageCon
     return activeRankings.results || [];
   }, [activeRankings]);
 
+  // Extract numeric param keys for dynamic filter
+  const numericParamKeys = useMemo(() => {
+    if (allResults.length === 0) return [];
+    return Object.entries(allResults[0].params)
+      .filter(([, v]) => typeof v === 'number')
+      .map(([k]) => k);
+  }, [allResults]);
+
+  // Apply ranking filters (cumulative mode only)
+  const filteredResults = useMemo(() => {
+    if (resultTabMode !== 'cumulative') return allResults;
+    const f = rankingFilters;
+    return allResults.filter((item) => {
+      if (f.minAvgReturn !== '' && item.avgReturn < f.minAvgReturn) return false;
+      if (f.maxMaxMdd !== '' && item.maxMdd > f.maxMaxMdd) return false;
+      if (f.minCompositeScore !== '' && item.compositeScore < f.minCompositeScore) return false;
+      if (f.maxNegativeYears !== '') {
+        const neg = item.yearlyResults.filter(yr => yr.totalReturn < 0).length;
+        if (neg > f.maxNegativeYears) return false;
+      }
+      for (const [key, range] of Object.entries(f.paramFilters)) {
+        const val = item.params[key];
+        if (typeof val !== 'number') continue;
+        if (range.min !== '' && val < range.min) return false;
+        if (range.max !== '' && val > range.max) return false;
+      }
+      return true;
+    });
+  }, [allResults, rankingFilters, resultTabMode]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [rankingFilters]);
+
   const paginatedResults = useMemo((): YearlyRankedResultItem[] => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    return allResults.slice(startIndex, endIndex);
-  }, [allResults, currentPage, itemsPerPage]);
+    return filteredResults.slice(startIndex, endIndex);
+  }, [filteredResults, currentPage, itemsPerPage]);
 
   // Get total pages
-  const totalPages = Math.ceil(allResults.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredResults.length / itemsPerPage);
 
   // Toggle row expansion
   const toggleRowExpansion = (rank: number) => {
@@ -1103,6 +1143,7 @@ export default function OptimizerPageContent({ market, title }: OptimizerPageCon
                     setResultTabMode(mode);
                     setCurrentPage(1);
                     setExpandedRows({});
+                    setRankingFilters(defaultFilters);
                   }}
                   currentCount={yearlyRankings?.results.length ?? 0}
                   cumulativeCount={cachedRankings?.results.length ?? 0}
@@ -1141,8 +1182,36 @@ export default function OptimizerPageContent({ market, title }: OptimizerPageCon
               </div>
             )}
 
+            {/* Ranking Filter Bar */}
+            {resultTabMode === 'cumulative' && allResults.length > 0 && (
+              <RankingFilterBar
+                filters={rankingFilters}
+                onFiltersChange={setRankingFilters}
+                paramKeys={numericParamKeys}
+                paramLabelMap={paramLabelMap}
+                filteredCount={filteredResults.length}
+                totalCount={allResults.length}
+                onReset={() => setRankingFilters(defaultFilters)}
+              />
+            )}
+
+            {/* Filtered empty state */}
+            {filteredResults.length === 0 && allResults.length > 0 && (
+              <div className="flex flex-col items-center justify-center py-8 gap-2">
+                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  필터 조건에 맞는 결과가 없습니다.
+                </p>
+                <button
+                  onClick={() => setRankingFilters(defaultFilters)}
+                  className="px-3 py-1.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                >
+                  필터 초기화
+                </button>
+              </div>
+            )}
+
             {/* Results Table */}
-            {allResults.length > 0 && (<>
+            {filteredResults.length > 0 && (<>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -1359,7 +1428,7 @@ export default function OptimizerPageContent({ market, title }: OptimizerPageCon
             <div className="flex gap-3 mt-4">
               <button
                 onClick={() => {
-                  const topResult = allResults[0];
+                  const topResult = filteredResults[0];
                   if (topResult) {
                     const backtestPath = market === 'kr' ? '/backtest/domestic' : '/backtest/overseas';
                     const params = new URLSearchParams({
@@ -1378,7 +1447,7 @@ export default function OptimizerPageContent({ market, title }: OptimizerPageCon
               </button>
               <button
                 onClick={() => {
-                  const results = allResults;
+                  const results = filteredResults;
                   // CSV with yearly details
                   const years = results[0]?.yearlyResults.map(y => y.year) || [];
                   const yearHeaders = years.flatMap(y => [`${y}_return`, `${y}_mdd`]);

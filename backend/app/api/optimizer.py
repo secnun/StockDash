@@ -39,11 +39,7 @@ from app.optimizers.cache import (
 )
 from app.api.backtest import find_data_file
 from app.strategies.utils import get_fee_rate_for_market
-from app.services.clustering import (
-    add_all_positive_flag,
-    cluster_and_select_representatives,
-    sort_with_all_positive_priority,
-)
+from app.services.clustering import cluster_and_select_representatives
 from app.strategies import StrategyRegistry
 
 router = APIRouter(prefix="/api/optimizer", tags=["optimizer"])
@@ -51,6 +47,8 @@ router = APIRouter(prefix="/api/optimizer", tags=["optimizer"])
 
 def _recalc_scores(r: dict) -> None:
     """Recalculate avg_return, std_return, composite_score from yearly_results in-place."""
+    import operator
+    from functools import reduce
     from statistics import mean, stdev
 
     yearly = r.get("yearly_results", [])
@@ -63,25 +61,23 @@ def _recalc_scores(r: dict) -> None:
 
     returns = [yr["total_return"] for yr in yearly]
     mdds = [yr["mdd"] for yr in yearly]
+    n = len(returns)
 
     avg_ret = mean(returns)
     std_ret = stdev(returns) if len(returns) > 1 else 0.0
     max_mdd = max(mdds)
 
-    # positive_ratio 거듭제곱 패널티 (α=2): 마이너스 연도가 많을수록 점수 급감
-    negative_years = sum(1 for yr in yearly if yr["total_return"] <= 0)
-    total_years = len(yearly)
-    positive_ratio = (total_years - negative_years) / total_years
+    # Composite score: geometric mean return / avg MDD
+    factors = [1 + ret / 100 for ret in returns]
+    product = reduce(operator.mul, factors, 1.0)
 
-    if max_mdd == 0:
-        base_score = avg_ret * 100
-    elif avg_ret == 0:
-        base_score = 0.0
+    if product <= 0:
+        score = -abs(sum(returns)) / n
     else:
-        cv = std_ret / abs(avg_ret)
-        base_score = avg_ret / (max_mdd * (1 + cv))
-
-    score = base_score * (positive_ratio ** 2)
+        geo_mean = (product ** (1 / n) - 1) * 100
+        avg_mdd = sum(mdds) / n if mdds else 0
+        avg_mdd = max(avg_mdd, 1.0)
+        score = geo_mean / avg_mdd
 
     r["avg_return"] = round(avg_ret, 2)
     r["std_return"] = round(std_ret, 2)
@@ -107,8 +103,12 @@ def _build_yearly_rankings(
     for r in results:
         _recalc_scores(r)
 
-    results = add_all_positive_flag(results)
-    results_sorted = sort_with_all_positive_priority(results)
+    # all_positive flag (informational only, no longer affects sorting)
+    for r in results:
+        yearly = r.get("yearly_results", [])
+        r["all_positive"] = bool(yearly) and all(yr.get("total_return", 0) > 0 for yr in yearly)
+
+    results_sorted = sorted(results, key=lambda x: x.get("composite_score", 0), reverse=True)
     results_clustered = cluster_and_select_representatives(
         results_sorted,
         n_clusters=top_n,

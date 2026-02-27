@@ -4,6 +4,8 @@ Runs backtests with yearly capital resets to avoid compounding distortion.
 """
 
 import logging
+import operator
+from functools import reduce
 from pathlib import Path
 from statistics import mean, stdev
 from typing import TypedDict
@@ -124,21 +126,20 @@ def run_yearly_backtest(
         # Max MDD across all years
         max_mdd = max(r["mdd"] for r in yearly_results)
 
-        # Composite score: base_score * (positive_ratio ** 2)
-        # positive_ratio 거듭제곱 패널티: 마이너스 연도가 많을수록 점수 급감
-        negative_years = sum(1 for r in yearly_results if r["total_return"] <= 0)
-        total_years = len(yearly_results)
-        positive_ratio = (total_years - negative_years) / total_years
+        # Composite score: geometric mean return / avg MDD
+        # 기하평균은 복리 효과를 반영하여 손실 연도를 자연스럽게 감점
+        n = len(returns)
+        factors = [1 + r / 100 for r in returns]
+        product = reduce(operator.mul, factors, 1.0)
 
-        if max_mdd == 0:
-            base_score = avg_return * 100
-        elif avg_return == 0:
-            base_score = 0.0
+        if product <= 0:
+            composite_score = -abs(sum(returns)) / n
         else:
-            cv = std_return / abs(avg_return)
-            base_score = avg_return / (max_mdd * (1 + cv))
-
-        composite_score = base_score * (positive_ratio ** 2)
+            geo_mean = (product ** (1 / n) - 1) * 100
+            mdds = [r["mdd"] for r in yearly_results]
+            avg_mdd = sum(mdds) / n if mdds else 0
+            avg_mdd = max(avg_mdd, 1.0)  # 0 방지
+            composite_score = geo_mean / avg_mdd
 
         return YearlyBacktestResult(
             yearly_results=yearly_results,
