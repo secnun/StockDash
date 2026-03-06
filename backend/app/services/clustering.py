@@ -11,52 +11,63 @@ from sklearn.preprocessing import MinMaxScaler
 
 def cluster_and_select_representatives(
     results: list[dict],
-    n_clusters: int = 10,
+    target_total: int = 70,
     min_results_for_clustering: int = 20,
-    guaranteed_top_n: int = 0,
+    guaranteed_top_n: int = 30,
+    pool_multiplier: int = 5,
 ) -> list[dict]:
     """
     Cluster results by parameters and select best representative from each cluster.
 
-    When guaranteed_top_n > 0, the top N results by score are unconditionally included,
-    then clustering is applied to the remaining results for diversity.
+    Uses Score-Gate + adaptive K approach:
+    - Top guaranteed_top_n results are unconditionally included
+    - Only the top pool (diversity_slots * pool_multiplier) are considered for clustering
+    - K is automatically determined based on pool size
 
     Args:
         results: List of optimizer results, each with 'params' and 'composite_score'
-        n_clusters: Target number of clusters (will be reduced if fewer results)
+        target_total: Target total number of results to return
         min_results_for_clustering: Minimum results needed to apply clustering
-        guaranteed_top_n: Number of top results to guarantee by score (0 = disabled)
+        guaranteed_top_n: Number of top results to guarantee by score
+        pool_multiplier: Pool size = diversity_slots * pool_multiplier
 
     Returns:
         List of representative results (guaranteed top-N + cluster representatives)
     """
     if len(results) < min_results_for_clustering:
-        return results[: n_clusters + guaranteed_top_n]
+        return results[:target_total]
 
     # Step 1: Guarantee top-N results by score
-    top_guaranteed = results[:guaranteed_top_n] if guaranteed_top_n > 0 else []
-    remaining = results[guaranteed_top_n:] if guaranteed_top_n > 0 else results
+    top_guaranteed = results[:guaranteed_top_n]
+    remaining = results[guaranteed_top_n:]
 
     if not remaining:
         return top_guaranteed
 
-    # Step 2: Cluster the remaining results
+    # Step 2: Score-Gate — limit clustering pool to top candidates only
+    diversity_slots = target_total - guaranteed_top_n
+    if diversity_slots <= 0:
+        return top_guaranteed[:target_total]
+
+    pool_size = min(len(remaining), diversity_slots * pool_multiplier)
+    pool = remaining[:pool_size]
+
+    # Step 3: Adaptive K — determine cluster count from pool size
+    actual_k = min(diversity_slots, max(5, len(pool) // 10))
+
     # Extract numeric parameter values
-    param_keys = sorted(remaining[0]["params"].keys())
+    param_keys = sorted(pool[0]["params"].keys())
     param_matrix = np.array([
         [result["params"].get(key, 0) for key in param_keys]
-        for result in remaining
+        for result in pool
     ])
 
     # Normalize parameters (min-max scaling)
     scaler = MinMaxScaler()
     normalized_params = scaler.fit_transform(param_matrix)
 
-    # Determine actual cluster count
-    actual_clusters = min(n_clusters, len(remaining))
-
     # K-Means clustering
-    kmeans = KMeans(n_clusters=actual_clusters, random_state=42, n_init=10)
+    kmeans = KMeans(n_clusters=actual_k, random_state=42, n_init=10)
     cluster_labels = kmeans.fit_predict(normalized_params)
 
     # Build set of guaranteed param tuples for deduplication
@@ -67,13 +78,13 @@ def cluster_and_select_representatives(
 
     # Select best representative from each cluster (skip if already in top-N)
     representatives: list[dict] = []
-    for cluster_id in range(actual_clusters):
+    for cluster_id in range(actual_k):
         cluster_indices = np.where(cluster_labels == cluster_id)[0]
         if len(cluster_indices) == 0:
             continue
 
         # Get results in this cluster, sorted by composite_score
-        cluster_results = [(idx, remaining[idx]) for idx in cluster_indices]
+        cluster_results = [(idx, pool[idx]) for idx in cluster_indices]
         cluster_results.sort(key=lambda x: x[1].get("composite_score", 0), reverse=True)
 
         # Select the best one that is not already guaranteed
@@ -83,7 +94,7 @@ def cluster_and_select_representatives(
                 representatives.append(result)
                 break
 
-    # Step 3: Combine and sort by composite_score
+    # Step 4: Combine and sort by composite_score
     combined = top_guaranteed + representatives
     combined.sort(key=lambda x: x.get("composite_score", 0), reverse=True)
 

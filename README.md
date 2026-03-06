@@ -91,11 +91,11 @@ cd ../backend && pip install -e ".[dev]"
 # Terminal 1 — Backend (http://localhost:8000)
 cd backend && uvicorn app.main:app --reload
 
-# Terminal 2 — Frontend (http://localhost:3000)
+# Terminal 2 — Frontend (http://localhost:3230)
 cd frontend && npm run dev
 ```
 
-브라우저에서 `http://localhost:3000` 접속
+브라우저에서 `http://localhost:3230` 접속
 
 ### Docker
 

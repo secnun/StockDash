@@ -67,7 +67,7 @@ def _recalc_scores(r: dict) -> None:
     std_ret = stdev(returns) if len(returns) > 1 else 0.0
     max_mdd = max(mdds)
 
-    # Composite score: geometric mean return / avg MDD
+    # Composite score: (geo_mean / (max_mdd × (1+CV))) × positive_ratio^α
     factors = [1 + ret / 100 for ret in returns]
     product = reduce(operator.mul, factors, 1.0)
 
@@ -75,9 +75,17 @@ def _recalc_scores(r: dict) -> None:
         score = -abs(sum(returns)) / n
     else:
         geo_mean = (product ** (1 / n) - 1) * 100
-        avg_mdd = sum(mdds) / n if mdds else 0
-        avg_mdd = max(avg_mdd, 1.0)
-        score = geo_mean / avg_mdd
+        max_mdd_val = max(mdds) if mdds else 0
+        max_mdd_val = max(max_mdd_val, 1.0)
+
+        cv = std_ret / abs(avg_ret) if abs(avg_ret) > 0.01 else std_ret
+        cv_penalty = 1 + cv
+
+        positive_count = sum(1 for r in returns if r > 0)
+        positive_ratio = positive_count / n
+        consistency = positive_ratio ** 2
+
+        score = (geo_mean / (max_mdd_val * cv_penalty)) * consistency
 
     r["avg_return"] = round(avg_ret, 2)
     r["std_return"] = round(std_ret, 2)
@@ -111,9 +119,10 @@ def _build_yearly_rankings(
     results_sorted = sorted(results, key=lambda x: x.get("composite_score", 0), reverse=True)
     results_clustered = cluster_and_select_representatives(
         results_sorted,
-        n_clusters=top_n,
+        target_total=top_n,
         min_results_for_clustering=20,
-        guaranteed_top_n=20,
+        guaranteed_top_n=30,
+        pool_multiplier=5,
     )
 
     yearly_ranked_items: list[YearlyRankedResultItem] = []

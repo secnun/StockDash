@@ -126,8 +126,10 @@ def run_yearly_backtest(
         # Max MDD across all years
         max_mdd = max(r["mdd"] for r in yearly_results)
 
-        # Composite score: geometric mean return / avg MDD
-        # 기하평균은 복리 효과를 반영하여 손실 연도를 자연스럽게 감점
+        # Composite score: (geo_mean / (max_mdd × (1+CV))) × positive_ratio^α
+        # - max_mdd: 최악 낙폭 반영 (avg_mdd 대신)
+        # - CV: 수익률 변동계수 패널티
+        # - positive_ratio^2: 마이너스 연도 명시적 패널티
         n = len(returns)
         factors = [1 + r / 100 for r in returns]
         product = reduce(operator.mul, factors, 1.0)
@@ -137,9 +139,17 @@ def run_yearly_backtest(
         else:
             geo_mean = (product ** (1 / n) - 1) * 100
             mdds = [r["mdd"] for r in yearly_results]
-            avg_mdd = sum(mdds) / n if mdds else 0
-            avg_mdd = max(avg_mdd, 1.0)  # 0 방지
-            composite_score = geo_mean / avg_mdd
+            max_mdd_val = max(mdds) if mdds else 0
+            max_mdd_val = max(max_mdd_val, 1.0)  # 0 방지
+
+            cv = std_return / abs(avg_return) if abs(avg_return) > 0.01 else std_return
+            cv_penalty = 1 + cv
+
+            positive_count = sum(1 for r in returns if r > 0)
+            positive_ratio = positive_count / n
+            consistency = positive_ratio ** 2
+
+            composite_score = (geo_mean / (max_mdd_val * cv_penalty)) * consistency
 
         return YearlyBacktestResult(
             yearly_results=yearly_results,

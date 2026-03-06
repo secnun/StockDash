@@ -9,7 +9,7 @@ services:
       - "8000:8000"
     environment:
       - DEBUG=false
-      - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
+      - CORS_ORIGINS=["http://localhost:3230","http://127.0.0.1:3230"]
       - MAX_WORKERS=4
     volumes:
       - ./data:/app/data:ro
