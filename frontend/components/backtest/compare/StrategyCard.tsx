@@ -38,9 +38,9 @@ export default function StrategyCard({
       // 커스텀 전략: 기본 splitPct 초기화
       if (strategyId === 'ddeolsapro_custom') {
         const divisions = (defaultParams.divisions as number) || 6;
-        const defaultPct = Math.round((100 / divisions) * 100) / 100;
+        const defaultSplits = [10, 15, 20, 20, 25, 10];
         for (let i = 1; i <= divisions; i++) {
-          defaultParams[`splitPct${i}`] = defaultPct;
+          defaultParams[`splitPct${i}`] = defaultSplits[i - 1] ?? Math.round((100 / divisions) * 100) / 100;
         }
       }
       onUpdate({

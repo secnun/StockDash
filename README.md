@@ -6,7 +6,7 @@
 
 전략 백테스트 · 파라미터 최적화 · 실시간 성과 분석
 
-[![Version](https://img.shields.io/badge/version-v1.0.1-blue?style=for-the-badge)](https://github.com/secnun/StockDash/releases)
+[![Version](https://img.shields.io/badge/version-v2.0.0-blue?style=for-the-badge)](https://github.com/secnun/StockDash/releases)
 [![License](https://img.shields.io/badge/license-Private-red?style=for-the-badge)](#)
 
 <br />
@@ -43,7 +43,10 @@ StockDash는 다양한 매매 전략을 과거 데이터로 검증하고, 파라
 - **연도별 독립 분석** — Seed Reset / Seed Carry 두 가지 모드로 연도·월별 성과 분석
 - **멀티 마켓** — 미국 주식, 국내 주식, 레버리지 ETF, 암호화폐(BTC/ETH/SOL/XRP) 지원
 - **성과 지표** — Total Return, CAGR, MDD, Win Rate, Sharpe Ratio 자동 산출
-- **스위칭 전략 랩** — 지표 기반 조건부 전략 전환 시뮬레이션 및 최적화
+- **전략 추천 레이더** — 시장 상황 패턴 매칭 기반 전략 자동 추천 및 백테스트
+- **동파 분석** — QQQ 추세선 기반 모드 전환 전략 시뮬레이션 및 최적화
+- **비대칭 복리** — 비대칭 복리 갱신 전략 비교 분석
+- **대시보드** — 전략별 히트맵 시각화
 - **결과 캐싱** — CSV 기반 캐시로 이미 계산된 조합을 건너뛰어 재실행 속도 향상
 - **K-Means 클러스터링** — 최적화 결과에서 다양한 특성의 대표 파라미터셋 자동 선별
 - **다크 모드** — `next-themes` 기반 라이트/다크 테마 지원
@@ -147,7 +150,7 @@ stockdash/
 │   │   ├── backtest/            #   ├── 미국·국내·레버리지 백테스트
 │   │   ├── optimizer/           #   ├── 파라미터 최적화
 │   │   ├── crypto-backtest/     #   ├── 암호화폐 백테스트 & 페어 비교
-│   │   └── lab/                 #   └── 스위칭 전략 랩
+│   │   └── lab/                 #   └── 실험실 (전략추천, 동파, 비대칭복리)
 │   ├── components/              # React 컴포넌트
 │   ├── lib/                     # API 클라이언트, hooks, 유틸리티
 │   └── types/                   # TypeScript 타입 정의
@@ -157,8 +160,10 @@ stockdash/
 │       ├── api/                 # REST API 엔드포인트
 │       │   ├── backtest.py      #   ├── 백테스트 실행
 │       │   ├── optimizer.py     #   ├── 파라미터 최적화 (SSE)
-│       │   ├── crypto.py        #   ├── 암호화폐 백테스트
-│       │   └── switching.py     #   └── 스위칭 전략
+│       │   ├── crypto_backtest.py #  ├── 암호화폐 백테스트
+│       │   ├── dongpa.py        #   ├── 동파 분석
+│       │   ├── lab.py           #   ├── 실험실 (비대칭복리, 전략추천)
+│       │   └── dashboard.py     #   └── 대시보드
 │       ├── services/            # 비즈니스 로직
 │       │   ├── engine.py        #   ├── 백테스트 엔진
 │       │   ├── metrics.py       #   ├── 성과 지표 (NumPy 가속)
@@ -184,8 +189,11 @@ stockdash/
 | `GET` | `/api/optimizer/cached/{strategy}/{ticker}` | 캐시된 최적화 결과 |
 | `POST` | `/api/crypto/backtest/run` | 암호화폐 백테스트 |
 | `GET` | `/api/crypto/pairs/price` | 암호화폐 페어 가격 비교 |
-| `POST` | `/api/switching/backtest/run` | 스위칭 백테스트 |
-| `POST` | `/api/switching/optimizer/run` | 스위칭 최적화 (SSE) |
+| `POST` | `/api/dongpa/backtest/run` | 동파 백테스트 |
+| `POST` | `/api/dongpa/optimizer/run` | 동파 최적화 (SSE) |
+| `POST` | `/api/lab/asymmetric-compound` | 비대칭 복리 분석 |
+| `POST` | `/api/lab/strategy-recommend` | 전략 추천 |
+| `GET` | `/api/dashboard/heatmap` | 전략 히트맵 |
 | `GET` | `/docs` | Swagger UI |
 
 <br />

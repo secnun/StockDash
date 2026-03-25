@@ -1,50 +1,28 @@
 """Crypto Backtest API endpoints."""
 
-import re
-from pathlib import Path
-
 from fastapi import APIRouter, HTTPException
-
-from app.core.config import get_settings
 from pydantic import BaseModel, Field
 
-from app.models.backtest import BacktestResponse, DateRangeResponse, OHLCV
-from app.services.data_loader import filter_by_date_range, load_csv_pandas, timestamp_to_date
+from app.models.backtest import BacktestResponse, DateRangeResponse
+from app.services.data_loader import (
+    df_to_ohlcv,
+    filter_by_date_range,
+    find_crypto_data_file,
+    get_crypto_fee_rate,
+    load_csv_pandas,
+    timestamp_to_date,
+)
 from app.strategies.crypto import CryptoStrategyRegistry
 
 router = APIRouter(prefix="/api/crypto", tags=["crypto"])
 
 
-def find_crypto_data_file(coin: str, market: str) -> Path | None:
-    """
-    Find the crypto data file path.
+@router.get("/fee-rates")
+async def get_crypto_fee_rates() -> dict:
+    """거래소별 기본 수수료율 반환."""
+    from app.services.data_loader import CRYPTO_FEE_RATES
 
-    Args:
-        coin: Coin ID (e.g., 'btc')
-        market: Market ID (e.g., 'usdt')
-
-    Returns:
-        Path to the data file, or None if not found
-    """
-    if not re.match(r'^[a-zA-Z0-9_-]+$', coin) or not re.match(r'^[a-zA-Z0-9_-]+$', market):
-        return None
-
-    settings = get_settings()
-    # data_dir is ../data/stocks, so go up one level to get ../data
-    base_data_dir = Path(settings.data_dir).parent
-
-    # Path pattern: data/crypto/{coin}/day/{market}/*.csv
-    crypto_dir = base_data_dir / "crypto" / coin.lower() / "day" / market.lower()
-
-    if not crypto_dir.exists():
-        return None
-
-    # Find CSV files
-    csv_files = list(crypto_dir.glob("*.csv"))
-    if not csv_files:
-        return None
-
-    return csv_files[0]
+    return {k: {"rate": v, "percent": f"{v * 100:.2f}%"} for k, v in CRYPTO_FEE_RATES.items()}
 
 
 @router.get("/strategies")
@@ -74,23 +52,24 @@ async def get_crypto_strategies() -> list[dict]:
 
 
 @router.get("/date-range")
-async def get_crypto_date_range(coin: str, market: str) -> DateRangeResponse:
+async def get_crypto_date_range(coin: str, market: str, timeframe: str = "4h") -> DateRangeResponse:
     """
     Get the date range available for a crypto pair.
 
     Args:
         coin: Coin ID (e.g., 'btc')
-        market: Market ID (e.g., 'usdt')
+        market: Market/exchange ID (e.g., 'binance', 'upbit')
+        timeframe: Timeframe (e.g., '4h', '1h', '1d')
 
     Returns:
         DateRangeResponse with min and max dates
     """
-    data_path = find_crypto_data_file(coin, market)
+    data_path = find_crypto_data_file(coin, market, timeframe)
 
     if data_path is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Data not found for {coin}/{market}",
+            detail=f"'{coin}/{market}' 데이터를 찾을 수 없습니다",
         )
 
     try:
@@ -98,13 +77,13 @@ async def get_crypto_date_range(coin: str, market: str) -> DateRangeResponse:
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to load data: {str(e)}",
+            detail=f"데이터 로드 실패: {str(e)}",
         )
 
     if len(df) == 0:
         raise HTTPException(
             status_code=400,
-            detail="Data file is empty",
+            detail="데이터 파일이 비어있습니다",
         )
 
     min_date = timestamp_to_date(int(df["time"].iloc[0]))
@@ -122,6 +101,7 @@ async def run_crypto_backtest(
     start_date: str | None = None,
     end_date: str | None = None,
     apply_fee: bool = True,
+    timeframe: str = "4h",
     parameters: dict | None = None,
 ) -> BacktestResponse:
     """
@@ -129,12 +109,13 @@ async def run_crypto_backtest(
 
     Args:
         coin: Coin ID (e.g., 'btc')
-        market: Market ID (e.g., 'usdt')
-        strategy_id: Strategy ID (e.g., 'hodl', 'sma_crossover')
+        market: Exchange ID (e.g., 'binance', 'upbit')
+        strategy_id: Strategy ID (e.g., 'hodl', 'sma_crossover', 'crypto_jongjong5')
         initial_capital: Starting capital
         start_date: Start date (YYYY-MM-DD)
         end_date: End date (YYYY-MM-DD)
-        apply_fee: Whether to apply trading fees (0.1%)
+        apply_fee: Whether to apply trading fees
+        timeframe: Candle timeframe (e.g., '4h', '1h', '1d')
         parameters: Strategy parameters
 
     Returns:
@@ -145,15 +126,15 @@ async def run_crypto_backtest(
     if strategy is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Strategy '{strategy_id}' not found",
+            detail=f"'{strategy_id}' 전략을 찾을 수 없습니다",
         )
 
     # Load data
-    data_path = find_crypto_data_file(coin, market)
+    data_path = find_crypto_data_file(coin, market, timeframe)
     if data_path is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Data not found for {coin}/{market}",
+            detail=f"'{coin}/{market}' ({timeframe}) 데이터를 찾을 수 없습니다",
         )
 
     try:
@@ -161,7 +142,7 @@ async def run_crypto_backtest(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to load data: {str(e)}",
+            detail=f"데이터 로드 실패: {str(e)}",
         )
 
     # Filter by date range
@@ -170,22 +151,18 @@ async def run_crypto_backtest(
     if len(df) == 0:
         raise HTTPException(
             status_code=400,
-            detail="No data available for the specified date range",
+            detail="지정한 기간에 데이터가 없습니다",
         )
 
     # Convert DataFrame to OHLCV list for priceData
-    price_data = [
-        OHLCV(time=int(t), open=float(o), high=float(h), low=float(l), close=float(c), volume=float(v))
-        for t, o, h, l, c, v in zip(
-            df["time"].values, df["open"].values, df["high"].values,
-            df["low"].values, df["close"].values, df["volume"].values,
-        )
-    ]
+    price_data = df_to_ohlcv(df)
 
-    # Execute strategy
+    # Execute strategy with exchange-specific fee rate
     try:
+        fee_rate = get_crypto_fee_rate(market)
         params = parameters or {}
         params["applyFee"] = apply_fee
+        params["feeRate"] = fee_rate
         result = strategy.execute(
             data=df,
             params=params,
@@ -194,7 +171,7 @@ async def run_crypto_backtest(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Backtest execution failed: {str(e)}",
+            detail=f"백테스트 실행 실패: {str(e)}",
         )
 
     # Add priceData to result
@@ -261,7 +238,7 @@ async def get_pair_price_data(
     if data_path is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Data not found for {coin}/{market}",
+            detail=f"'{coin}/{market}' 데이터를 찾을 수 없습니다",
         )
 
     try:
@@ -269,7 +246,7 @@ async def get_pair_price_data(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to load data: {str(e)}",
+            detail=f"데이터 로드 실패: {str(e)}",
         )
 
     # Filter by date range
@@ -278,7 +255,7 @@ async def get_pair_price_data(
     if len(df) == 0:
         raise HTTPException(
             status_code=400,
-            detail="No data available for the specified date range",
+            detail="지정한 기간에 데이터가 없습니다",
         )
 
     # Calculate price data with change percentages

@@ -9,15 +9,60 @@
 
 import { BacktestResult, OHLCV, ParameterValue, PeriodIndependentResult } from '@/types/backtest';
 import {
-  SwitchingBacktestRequest,
-  SwitchingBacktestResponse,
-  IndicatorInfo,
-  SwitchingOptimizerRequest,
-  SwitchingOptimizerCallbacks,
-} from '@/types/switching';
+  DongpaBacktestRequest,
+  DongpaBacktestResponse,
+  DongpaIndicatorInfo,
+  DongpaOptimizerCallbacks,
+  DongpaOptimizerRequest,
+  DongpaOptimizerResultItem,
+  QQQWeeklyPoint,
+} from '@/types/dongpa';
 
 // Backend API base URL - can be overridden via environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+/**
+ * Generic SSE stream parser.
+ * Reads from a ReadableStreamDefaultReader and dispatches parsed events to handlers.
+ */
+async function parseSSEStream(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  handlers: Record<string, (data: unknown) => void>,
+): Promise<void> {
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let currentEvent = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('event:')) {
+          currentEvent = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
+          const data = line.slice(5).trim();
+          if (data) {
+            try {
+              const parsed = JSON.parse(data);
+              handlers[currentEvent]?.(parsed);
+            } catch (e) {
+              console.error('Failed to parse SSE data:', e);
+            }
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
 
 /**
  * API Request/Response Types
@@ -229,6 +274,7 @@ export interface CryptoBacktestRequest {
   startDate?: string;
   endDate?: string;
   applyFee?: boolean;
+  timeframe?: string;
   parameters?: Record<string, ParameterValue>;
 }
 
@@ -246,8 +292,8 @@ export async function fetchCryptoStrategies(): Promise<StrategyInfo[]> {
 /**
  * Get date range for a crypto pair (via backend)
  */
-export async function fetchCryptoDateRange(coin: string, market: string): Promise<DateRangeResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/crypto/date-range?coin=${encodeURIComponent(coin)}&market=${encodeURIComponent(market)}`);
+export async function fetchCryptoDateRange(coin: string, market: string, timeframe: string = '4h'): Promise<DateRangeResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/crypto/date-range?coin=${encodeURIComponent(coin)}&market=${encodeURIComponent(market)}&timeframe=${encodeURIComponent(timeframe)}`);
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: response.statusText }));
     throw new Error(error.detail || '날짜 범위를 불러올 수 없습니다');
@@ -269,6 +315,7 @@ export async function runCryptoBacktestAPI(request: CryptoBacktestRequest): Prom
   if (request.startDate) params.set('start_date', request.startDate);
   if (request.endDate) params.set('end_date', request.endDate);
   if (request.applyFee !== undefined) params.set('apply_fee', request.applyFee.toString());
+  if (request.timeframe) params.set('timeframe', request.timeframe);
 
   // Note: parameters are passed as query params for simplicity
   // A proper implementation would use POST body
@@ -459,187 +506,224 @@ export async function runOptimizerAPI(
     throw new Error('응답 데이터를 읽을 수 없습니다');
   }
 
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let currentEvent = '';
+  await parseSSEStream(reader, {
+    start: (data) => callbacks.onStart?.(data as OptimizerStartResponse),
+    progress: (data) => callbacks.onProgress?.(data as GridSearchProgress),
+    yearly_rankings: (data) => callbacks.onYearlyRankings?.(data as YearlyRankings),
+    done: (data) => callbacks.onDone?.(data as GridSearchDone),
+    cache_info: (data) => callbacks.onCacheInfo?.(data as GridSearchCacheInfo),
+    cancelled: (data) => callbacks.onCancelled?.(data as OptimizerCancelled),
+    error: (data) => callbacks.onError?.(new Error((data as { message?: string }).message ?? 'Optimizer error')),
+  });
+}
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+// ===== 짭파법 v1 API =====
 
-      buffer += decoder.decode(value, { stream: true });
+export interface JjappaConfig {
+  rsiThreshold: number;
+  // 안전모드
+  safeStrategy: 'dongpa' | 'ddeolsapro3';
+  safeBuyMaxRise: number;
+  safeDropPercent: number;
+  safeTargetProfit: number;
+  safeMaxHoldDays: number;
+  safeStopLossDayBuy: 'allow' | 'block';
+  // 공세모드
+  aggrStrategy: 'dongpa' | 'ddeolsapro3';
+  aggrBuyMaxRise: number;
+  aggrDropPercent: number;
+  aggrTargetProfit: number;
+  aggrMaxHoldDays: number;
+  aggrStopLossDayBuy: 'allow' | 'block';
+  // 투자금 갱신
+  renewalMode: 'no_position' | 'fixed_period' | 'hybrid';
+  renewalPeriod: number;
+  profitRate: number;
+  lossRate: number;
+  feeRate: number;
+  applyFee: boolean;
+}
 
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+export interface JjappaRequest {
+  startDate?: string;
+  endDate?: string;
+  initialCapital: number;
+  config: JjappaConfig;
+}
 
-      for (const line of lines) {
-        if (line.startsWith('event:')) {
-          currentEvent = line.slice(6).trim();
-        } else if (line.startsWith('data:')) {
-          const data = line.slice(5).trim();
-          if (data) {
-            try {
-              const parsed = JSON.parse(data);
-              switch (currentEvent) {
-                case 'start':
-                  callbacks.onStart?.(parsed as OptimizerStartResponse);
-                  break;
-                case 'progress':
-                  callbacks.onProgress?.(parsed as GridSearchProgress);
-                  break;
-                case 'yearly_rankings':
-                  callbacks.onYearlyRankings?.(parsed as YearlyRankings);
-                  break;
-                case 'done':
-                  callbacks.onDone?.(parsed as GridSearchDone);
-                  break;
-                case 'cache_info':
-                  callbacks.onCacheInfo?.(parsed as GridSearchCacheInfo);
-                  break;
-                case 'cancelled':
-                  callbacks.onCancelled?.(parsed as OptimizerCancelled);
-                  break;
-                case 'error':
-                  callbacks.onError?.(new Error((parsed as { message?: string }).message ?? 'Optimizer error'));
-                  break;
-              }
-            } catch (e) {
-              console.error('Failed to parse SSE data:', e);
-            }
-          }
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
+export async function runJjappaBacktest(request: JjappaRequest): Promise<DongpaBacktestResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/dongpa/jjappa/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(err.detail || '짭파법 백테스트에 실패했습니다');
   }
+  return response.json();
+}
+
+// ===== 동파법 API =====
+
+/**
+ * Fetch QQQ weekly data with indicators
+ */
+export async function fetchQQQWeeklyData(): Promise<{
+  weeklyData: QQQWeeklyPoint[];
+  latest: QQQWeeklyPoint;
+}> {
+  const response = await fetch(`${API_BASE_URL}/api/dongpa/qqq-weekly`);
+  if (!response.ok) throw new Error('QQQ 주봉 데이터를 불러올 수 없습니다');
+  return response.json();
 }
 
 /**
- * Switching Backtest API
+ * Fetch dongpa available indicators
  */
+export async function fetchDongpaIndicators(): Promise<DongpaIndicatorInfo[]> {
+  const response = await fetch(`${API_BASE_URL}/api/dongpa/indicators`);
+  if (!response.ok) throw new Error('동파법 지표를 불러올 수 없습니다');
+  return response.json();
+}
 
 /**
- * Run switching backtest
+ * Run dongpa backtest
  */
-export async function runSwitchingBacktest(request: SwitchingBacktestRequest): Promise<SwitchingBacktestResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/switching/backtest/run`, {
+export async function runDongpaBacktest(
+  request: DongpaBacktestRequest,
+): Promise<DongpaBacktestResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/dongpa/backtest/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || '스위칭 백테스트 실행에 실패했습니다');
+    const err = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(err.detail || '동파법 백테스트에 실패했습니다');
   }
 
   return response.json();
 }
 
 /**
- * Get available indicators for switching rules
+ * Run dongpa optimizer with SSE streaming
  */
-export async function fetchSwitchingIndicators(): Promise<IndicatorInfo[]> {
-  const response = await fetch(`${API_BASE_URL}/api/switching/indicators`);
-  if (!response.ok) {
-    throw new Error(`지표 목록을 불러올 수 없습니다: ${response.statusText}`);
-  }
-  return response.json();
-}
-
-/**
- * Run switching trigger optimizer with SSE progress streaming
- */
-export async function runSwitchingOptimizerAPI(
-  request: SwitchingOptimizerRequest,
-  callbacks: SwitchingOptimizerCallbacks,
+export async function runDongpaOptimizerAPI(
+  request: DongpaOptimizerRequest,
+  callbacks: DongpaOptimizerCallbacks,
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/switching/optimizer/run`, {
+  const response = await fetch(`${API_BASE_URL}/api/dongpa/optimizer/run`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || '스위칭 옵티마이저 실행에 실패했습니다');
+    const err = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(err.detail || '동파법 옵티마이저에 실패했습니다');
   }
 
   const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error('응답 데이터를 읽을 수 없습니다');
-  }
+  if (!reader) throw new Error('SSE 스트림을 읽을 수 없습니다');
 
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let currentEvent = '';
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.startsWith('event:')) {
-          currentEvent = line.slice(6).trim();
-        } else if (line.startsWith('data:')) {
-          const data = line.slice(5).trim();
-          if (data) {
-            try {
-              const parsed = JSON.parse(data);
-              switch (currentEvent) {
-                case 'start':
-                  callbacks.onStart?.(parsed);
-                  break;
-                case 'progress':
-                  callbacks.onProgress?.(parsed);
-                  break;
-                case 'results':
-                  callbacks.onResults?.(parsed);
-                  break;
-                case 'done':
-                  callbacks.onDone?.(parsed);
-                  break;
-                case 'cancelled':
-                  callbacks.onCancelled?.(parsed);
-                  break;
-              }
-            } catch (e) {
-              console.error('Failed to parse SSE data:', e);
-            }
-          }
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
+  await parseSSEStream(reader, {
+    start: (data) => callbacks.onStart?.(data as { jobId: string }),
+    progress: (data) => callbacks.onProgress?.(data as { completed: number; total: number; percent: number }),
+    results: (data) => callbacks.onResults?.(data as DongpaOptimizerResultItem[]),
+    done: (data) => callbacks.onDone?.(data as { totalTime: number; resultsCount: number }),
+    cancelled: (data) => callbacks.onCancelled?.(data as { jobId: string; completed: number; total: number }),
+  });
 }
 
 /**
- * Cancel switching optimizer execution
+ * Cancel dongpa optimizer
  */
-export async function cancelSwitchingOptimizer(
+export async function cancelDongpaOptimizer(
   jobId: string,
 ): Promise<{ status: string; jobId: string }> {
-  const response = await fetch(`${API_BASE_URL}/api/switching/optimizer/cancel/${jobId}`, {
+  const response = await fetch(`${API_BASE_URL}/api/dongpa/optimizer/cancel/${jobId}`, {
     method: 'POST',
   });
+  if (!response.ok) throw new Error('동파법 옵티마이저 취소에 실패했습니다');
+  return response.json();
+}
 
+// ===== 떨사 Pro 추천 API =====
+
+import { HeatmapResponse } from '@/types/dashboard';
+import { RecommendResponse, RadarBacktestResponse } from '@/types/recommend';
+
+export interface StrategyParamsOverride {
+  dropPercent?: number;
+  targetProfit?: number;
+  stopLossDays?: number;
+  stopLossDayBuy?: string;
+}
+
+export async function fetchStrategyRecommendation(
+  targetDate?: string,
+  forwardDays: number = 30,
+  topN: number = 6,
+  alpha: number = -0.05,
+  initialCapital: number = 100000,
+  strategyParams?: Record<string, StrategyParamsOverride>,
+): Promise<RecommendResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/lab/strategy-recommend/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      targetDate: targetDate || null,
+      forwardDays,
+      topN,
+      alpha,
+      initialCapital,
+      strategyParams: strategyParams || null,
+    }),
+  });
   if (!response.ok) {
-    throw new Error('스위칭 옵티마이저 취소에 실패했습니다');
+    const err = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(err.detail || '전략 추천 분석에 실패했습니다');
   }
+  return response.json();
+}
 
+// ===== 레이더 백테스트 API =====
+
+export interface RadarBacktestRequest {
+  startDate?: string;
+  endDate?: string;
+  initialCapital: number;
+  forwardDays?: number;
+  topN?: number;
+  alpha?: number;
+  strategyParams?: Record<string, StrategyParamsOverride>;
+}
+
+export async function runRadarBacktest(
+  request: RadarBacktestRequest,
+): Promise<RadarBacktestResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/lab/strategy-recommend/backtest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(err.detail || '레이더 백테스트에 실패했습니다');
+  }
+  return response.json();
+}
+
+// ===== Dashboard API =====
+
+export async function fetchDashboardHeatmap(): Promise<HeatmapResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/dashboard/heatmap`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || '히트맵 데이터를 불러올 수 없습니다');
+  }
   return response.json();
 }
 
@@ -666,13 +750,21 @@ export const apiClient = {
     cancel: cancelOptimizer,
     cached: fetchCachedResults,
   },
-  switching: {
-    run: runSwitchingBacktest,
-    indicators: fetchSwitchingIndicators,
+dongpa: {
+    qqqWeekly: fetchQQQWeeklyData,
+    indicators: fetchDongpaIndicators,
+    run: runDongpaBacktest,
     optimizer: {
-      run: runSwitchingOptimizerAPI,
-      cancel: cancelSwitchingOptimizer,
+      run: runDongpaOptimizerAPI,
+      cancel: cancelDongpaOptimizer,
     },
+  },
+  lab: {
+    recommend: fetchStrategyRecommendation,
+    radarBacktest: runRadarBacktest,
+  },
+  dashboard: {
+    heatmap: fetchDashboardHeatmap,
   },
 };
 

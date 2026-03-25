@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # Data paths (relative to backend directory)
     data_dir: Path = Path("../data/stocks")
     optimizer_result_dir: Path = Path("../data/optimizer_result")
+    cache_dir: Path = Path("../data/cache")
 
     # Worker settings
     max_workers: int = 6

@@ -13,6 +13,7 @@ dependencies = [
     "sse-starlette>=2.1.0",
     "python-multipart>=0.0.17",
     "scikit-learn>=1.4.0",
+    "yfinance>=0.2.36",
 ]
 
 [project.optional-dependencies]

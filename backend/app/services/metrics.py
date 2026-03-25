@@ -92,28 +92,10 @@ def _get_trade_pairs(trades: list[Trade]) -> list[tuple[Trade, Trade]]:
 
 
 def _calculate_mdd(equity_values: np.ndarray) -> float:
-    """
-    Calculate Maximum Drawdown using NumPy vectorization.
+    """Calculate Maximum Drawdown using NumPy vectorization."""
+    from app.services.indicators import calc_mdd
 
-    Args:
-        equity_values: Array of equity values
-
-    Returns:
-        MDD as percentage
-    """
-    if len(equity_values) == 0:
-        return 0.0
-
-    # Running maximum
-    running_max = np.maximum.accumulate(equity_values)
-
-    # Guard against zero running_max (edge case)
-    safe_max = np.where(running_max == 0, 1, running_max)
-
-    # Drawdown at each point
-    drawdowns = (running_max - equity_values) / safe_max * 100
-
-    return float(np.max(drawdowns))
+    return calc_mdd(equity_values)
 
 
 def _calculate_cagr(

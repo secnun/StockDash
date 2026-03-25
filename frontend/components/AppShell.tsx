@@ -6,18 +6,16 @@ import TopBar from './TopBar';
 import MobileNav from './MobileNav';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const [pinned, setPinned] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  const expanded = pinned || hovered;
+  const [open, setOpen] = useState(true);
 
   return (
     <>
-      <Sidebar pinned={pinned} onTogglePin={() => setPinned((p) => !p)} expanded={expanded} onHoverChange={setHovered} />
+      <Sidebar open={open} onToggle={() => setOpen((o) => !o)} />
       <MobileNav />
       <main
-        className={`${expanded ? 'md:ml-55' : 'md:ml-16'} min-h-screen pb-14 md:pb-0 transition-[margin] duration-200`}
+        className={`${open ? 'md:ml-55' : 'md:ml-0'} min-h-screen pb-14 md:pb-0 transition-[margin] duration-200`}
       >
-        <TopBar />
+        <TopBar sidebarOpen={open} onToggleSidebar={() => setOpen((o) => !o)} />
         {children}
       </main>
     </>

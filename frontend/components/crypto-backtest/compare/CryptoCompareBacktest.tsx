@@ -15,10 +15,11 @@ interface Coin {
   symbol: string;
 }
 
-interface Market {
+interface Exchange {
   id: string;
   name: string;
-  symbol: string;
+  currency: string;
+  currencySymbol: string;
 }
 
 interface SelectedStrategy {
@@ -30,12 +31,13 @@ interface SelectedStrategy {
 interface CryptoCompareBacktestProps {
   coins: Coin[];
   selectedCoin: string;
-  markets: Market[];
-  selectedMarket: string;
+  exchanges: Exchange[];
+  selectedExchange: string;
   initialCapitalStr: string;
   startDate: string;
   endDate: string;
   applyFee: boolean;
+  timeframe?: string;
 }
 
 const MAX_STRATEGIES = 4;
@@ -47,12 +49,13 @@ function generateUniqueId(): string {
 export default function CryptoCompareBacktest({
   coins,
   selectedCoin,
-  markets,
-  selectedMarket,
+  exchanges,
+  selectedExchange,
   initialCapitalStr,
   startDate,
   endDate,
   applyFee,
+  timeframe = '4h',
 }: CryptoCompareBacktestProps) {
   const [strategies, setStrategies] = useState<StrategyInfo[]>([]);
   const [strategiesLoading, setStrategiesLoading] = useState(true);
@@ -131,12 +134,13 @@ export default function CryptoCompareBacktest({
 
         const result = await runCryptoBacktestAPI({
           coin: selectedCoin,
-          market: selectedMarket,
+          market: selectedExchange,
           strategyId: selected.strategyId,
           initialCapital,
           startDate,
           endDate,
           applyFee,
+          timeframe,
           parameters: selected.params,
         });
 
@@ -154,12 +158,12 @@ export default function CryptoCompareBacktest({
     } finally {
       setLoading(false);
     }
-  }, [selectedStrategies, strategies, selectedCoin, selectedMarket, initialCapital, startDate, endDate, applyFee]);
+  }, [selectedStrategies, strategies, selectedCoin, selectedExchange, initialCapital, startDate, endDate, applyFee]);
 
   const canAddMore = selectedStrategies.length < MAX_STRATEGIES;
   const validStrategyCount = selectedStrategies.filter(s => s.strategyId).length;
   const selectedCoinData = coins.find(c => c.id === selectedCoin);
-  const selectedMarketData = markets.find(m => m.id === selectedMarket);
+  const selectedExchangeData = exchanges.find(e => e.id === selectedExchange);
 
   // priceData는 첫 번째 결과에서 가져옴 (모든 전략이 같은 데이터 사용)
   const priceData = results.length > 0 ? results[0].result.priceData : undefined;
@@ -275,7 +279,7 @@ export default function CryptoCompareBacktest({
                 <div className="flex flex-wrap gap-3 text-xs">
                   <span className="flex items-center gap-1 text-gray-400">
                     <span className="w-3 h-0.5 bg-indigo-400/40 inline-block"></span>
-                    {selectedCoinData?.symbol}/{selectedMarketData?.name || 'Price'}
+                    {selectedCoinData?.symbol}/{selectedExchangeData?.currency || 'Price'}
                   </span>
                   {results.map((r) => (
                     <span key={r.strategyId} className="flex items-center gap-1 text-gray-600 dark:text-gray-300">
@@ -297,7 +301,7 @@ export default function CryptoCompareBacktest({
                 results={results}
                 initialCapital={initialCapital}
                 priceData={priceData}
-                tickerName={`${selectedCoinData?.symbol}/${selectedMarketData?.name}`}
+                tickerName={`${selectedCoinData?.symbol}/${selectedExchangeData?.currency}`}
               />
             </div>
           </div>

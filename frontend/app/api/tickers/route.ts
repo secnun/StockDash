@@ -36,9 +36,10 @@ export async function GET(request: NextRequest) {
     const tickers = tickerFolders.map(ticker => {
       const tickerDir = path.join(stocksDir, ticker);
 
-      // 티커 폴더 내 CSV 파일 찾기
+      // 티커 폴더 내 일봉(1d) CSV 파일만 찾기 (주봉 등 제외)
+      // 새 형식: {ticker}_1d.csv, 구 형식: 1d_*.csv
       const files = fs.readdirSync(tickerDir)
-        .filter(file => file.endsWith('.csv'))
+        .filter(file => file.endsWith('.csv') && /(?:_1d\.csv$|(?:^|_)1d_)/.test(file))
         .sort();
 
       const csvFile = files.length > 0 ? files[files.length - 1] : null;

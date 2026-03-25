@@ -13,46 +13,45 @@ interface Coin {
   symbol: string;
 }
 
-interface Market {
+interface Exchange {
   id: string;
   name: string;
-  symbol: string;
+  currency: string;
+  currencySymbol: string;
 }
 
-// 임시 코인 데이터 (추후 API로 대체)
-const MOCK_COINS: Coin[] = [
+const COINS: Coin[] = [
   { id: 'btc', name: 'Bitcoin', symbol: 'BTC' },
   { id: 'eth', name: 'Ethereum', symbol: 'ETH' },
-  { id: 'sol', name: 'Solana', symbol: 'SOL' },
   { id: 'xrp', name: 'Ripple', symbol: 'XRP' },
+  { id: 'sol', name: 'Solana', symbol: 'SOL' },
+  { id: 'doge', name: 'Dogecoin', symbol: 'DOGE' },
 ];
 
-// 임시 마켓 데이터 (추후 API로 대체)
-const MOCK_MARKETS: Market[] = [
-  { id: 'usdt', name: 'USDT', symbol: 'USDT' },
-  { id: 'krw', name: 'KRW', symbol: '₩' },
-  { id: 'usd', name: 'USD', symbol: '$' },
-  { id: 'usdc', name: 'USDC', symbol: 'USDC' },
+const EXCHANGES: Exchange[] = [
+  { id: 'binance', name: 'Binance', currency: 'USDT', currencySymbol: '$' },
+  { id: 'upbit', name: 'Upbit', currency: 'KRW', currencySymbol: '₩' },
 ];
 
 export default function CryptoBacktestPage() {
-  // 모드 상태
   const [mode, setMode] = useState<CryptoBacktestMode>('basic');
 
-  // 공통 설정 상태
-  const [coins] = useState<Coin[]>(MOCK_COINS);
   const [selectedCoin, setSelectedCoin] = useState('btc');
-  const [markets] = useState<Market[]>(MOCK_MARKETS);
-  const [selectedMarket, setSelectedMarket] = useState('usdt');
+  const [selectedExchange, setSelectedExchange] = useState('binance');
   const [initialCapitalStr, setInitialCapitalStr] = useState('10000');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [applyFee, setApplyFee] = useState(true);
+  const [timeframe, setTimeframe] = useState('4h');
 
-  // 날짜 범위 조회 훅
-  const { dateRange, isLoading: isDateRangeLoading } = useCryptoDateRange(selectedCoin, selectedMarket);
+  // 거래소 변경 시 초기자본 기본값 변경
+  useEffect(() => {
+    setInitialCapitalStr(selectedExchange === 'upbit' ? '10000000' : '10000');
+  }, [selectedExchange]);
 
-  // 날짜 범위 변경 시 시작일/종료일 초기화
+  // 날짜 범위 조회 (거래소를 market으로 전달)
+  const { dateRange, isLoading: isDateRangeLoading } = useCryptoDateRange(selectedCoin, selectedExchange, timeframe);
+
   useEffect(() => {
     if (dateRange) {
       setStartDate(dateRange.min);
@@ -63,12 +62,10 @@ export default function CryptoBacktestPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        {/* 헤더 */}
         <div className="mb-4">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">암호화폐 백테스팅</h1>
         </div>
 
-        {/* 모드 탭 + 설명 */}
         <div className="flex items-center gap-3 mb-4">
           <CryptoModeSelector mode={mode} onModeChange={setMode} />
           <div className={`flex-1 rounded-lg p-3 border ${mode === 'basic' ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'}`}>
@@ -83,51 +80,53 @@ export default function CryptoBacktestPage() {
           </div>
         </div>
 
-        {/* 공통 설정 */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
           <CryptoCommonSettings
-              coins={coins}
-              selectedCoin={selectedCoin}
-              onCoinChange={setSelectedCoin}
-              markets={markets}
-              selectedMarket={selectedMarket}
-              onMarketChange={setSelectedMarket}
-              initialCapitalStr={initialCapitalStr}
-              onInitialCapitalChange={setInitialCapitalStr}
-              startDate={startDate}
-              endDate={endDate}
-              dateRange={dateRange ?? { min: '', max: '' }}
-              onStartDateChange={setStartDate}
-              onEndDateChange={setEndDate}
-              applyFee={applyFee}
-              onApplyFeeChange={setApplyFee}
-              isDateRangeLoading={isDateRangeLoading}
-            />
+            coins={COINS}
+            selectedCoin={selectedCoin}
+            onCoinChange={setSelectedCoin}
+            exchanges={EXCHANGES}
+            selectedExchange={selectedExchange}
+            onExchangeChange={setSelectedExchange}
+            initialCapitalStr={initialCapitalStr}
+            onInitialCapitalChange={setInitialCapitalStr}
+            startDate={startDate}
+            endDate={endDate}
+            dateRange={dateRange ?? { min: '', max: '' }}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
+            applyFee={applyFee}
+            onApplyFeeChange={setApplyFee}
+            isDateRangeLoading={isDateRangeLoading}
+            timeframe={timeframe}
+            onTimeframeChange={setTimeframe}
+          />
         </div>
 
-        {/* 모드별 컨텐츠 */}
         {mode === 'basic' && (
           <CryptoBasicBacktest
-            coins={coins}
+            coins={COINS}
             selectedCoin={selectedCoin}
-            markets={markets}
-            selectedMarket={selectedMarket}
+            exchanges={EXCHANGES}
+            selectedExchange={selectedExchange}
             initialCapitalStr={initialCapitalStr}
             startDate={startDate}
             endDate={endDate}
             applyFee={applyFee}
+            timeframe={timeframe}
           />
         )}
         {mode === 'compare' && (
           <CryptoCompareBacktest
-            coins={coins}
+            coins={COINS}
             selectedCoin={selectedCoin}
-            markets={markets}
-            selectedMarket={selectedMarket}
+            exchanges={EXCHANGES}
+            selectedExchange={selectedExchange}
             initialCapitalStr={initialCapitalStr}
             startDate={startDate}
             endDate={endDate}
             applyFee={applyFee}
+            timeframe={timeframe}
           />
         )}
       </div>

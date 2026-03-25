@@ -18,32 +18,35 @@ interface Coin {
   symbol: string;
 }
 
-interface Market {
+interface Exchange {
   id: string;
   name: string;
-  symbol: string;
+  currency: string;
+  currencySymbol: string;
 }
 
 interface CryptoBasicBacktestProps {
   coins: Coin[];
   selectedCoin: string;
-  markets: Market[];
-  selectedMarket: string;
+  exchanges: Exchange[];
+  selectedExchange: string;
   initialCapitalStr: string;
   startDate: string;
   endDate: string;
   applyFee: boolean;
+  timeframe?: string;
 }
 
 export default function CryptoBasicBacktest({
   coins,
   selectedCoin,
-  markets,
-  selectedMarket,
+  exchanges,
+  selectedExchange,
   initialCapitalStr,
   startDate,
   endDate,
   applyFee,
+  timeframe = '4h',
 }: CryptoBasicBacktestProps) {
   const [strategies, setStrategies] = useState<StrategyInfo[]>([]);
   const [selectedStrategyId, setSelectedStrategyId] = useState('');
@@ -118,12 +121,13 @@ export default function CryptoBasicBacktest({
     try {
       const response = await runCryptoBacktestAPI({
         coin: selectedCoin,
-        market: selectedMarket,
+        market: selectedExchange,
         strategyId: selectedStrategyId,
         initialCapital,
         startDate,
         endDate,
         applyFee,
+        timeframe,
         parameters,
       });
       setResult(response);
@@ -132,7 +136,7 @@ export default function CryptoBasicBacktest({
     } finally {
       setLoading(false);
     }
-  }, [selectedStrategy, selectedCoin, selectedMarket, selectedStrategyId, initialCapital, startDate, endDate, applyFee, parameters]);
+  }, [selectedStrategy, selectedCoin, selectedExchange, selectedStrategyId, initialCapital, startDate, endDate, applyFee, timeframe, parameters]);
 
   // 0% 진입 횟수 계산
   const cashZeroCount = useMemo(() => {
@@ -153,7 +157,7 @@ export default function CryptoBasicBacktest({
   const metricCards = useMemo(() => buildMetricCards(result?.metrics ?? null), [result]);
 
   const selectedCoinData = coins.find(c => c.id === selectedCoin);
-  const selectedMarketData = markets.find(m => m.id === selectedMarket);
+  const selectedExchangeData = exchanges.find(e => e.id === selectedExchange);
 
   // Map local state to ExecutionMode for shared helpers
   const executionMode: ExecutionMode = strategiesLoading ? 'checking' : backendAvailable ? 'backend' : 'unavailable';
@@ -238,12 +242,12 @@ export default function CryptoBasicBacktest({
               const csv = backestResultToCSV(
                 result,
                 selectedStrategy.name,
-                `${selectedCoinData?.symbol || selectedCoin}/${selectedMarketData?.symbol || selectedMarket}`,
+                `${selectedCoinData?.symbol || selectedCoin}/${selectedExchangeData?.currency || selectedExchange}`,
                 startDate,
                 endDate,
                 initialCapital
               );
-              const filename = generateFilename(selectedStrategy.name, `${selectedCoinData?.symbol || selectedCoin}-${selectedMarketData?.symbol || selectedMarket}`);
+              const filename = generateFilename(selectedStrategy.name, `${selectedCoinData?.symbol || selectedCoin}-${selectedExchangeData?.currency || selectedExchange}`);
               downloadCSV(csv, filename);
             }}
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 flex flex-col items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -265,7 +269,7 @@ export default function CryptoBasicBacktest({
             <div className="flex justify-between items-center mb-2">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Equity & Price</h2>
               <div className="text-xs text-gray-500 dark:text-gray-400">
-                {selectedCoinData?.symbol}/{selectedMarketData?.name} · {startDate} ~ {endDate}
+                {selectedCoinData?.symbol}/{selectedExchangeData?.currency} · {startDate} ~ {endDate}
               </div>
             </div>
             <div className="h-[350px]">

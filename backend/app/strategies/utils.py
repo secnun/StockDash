@@ -151,12 +151,15 @@ def execute_buy_core(
     fee_rate: float,
     apply_fee: bool,
     use_net_calculation: bool = False,
+    qty_price: float | None = None,
 ) -> BuyResult:
     """
     매수 핵심 로직 (상태 업데이트 없이 계산만)
 
     Args:
         use_net_calculation: True면 ddeolsapro 방식 (예산에서 수수료 먼저 차감)
+        qty_price: 수량 계산용 가격 (LOC 주문 시 전일종가).
+                   None이면 buy_price 사용 (기존 동작 호환).
 
     Returns:
         BuyResult with all calculated values
@@ -165,11 +168,12 @@ def execute_buy_core(
     if budget <= 0:
         return BuyResult(cash, avg_cost, total_qty, 0, 0.0)
 
-    # 수량 계산 (두 가지 방식 지원)
+    # 수량 계산 — qty_price가 있으면 전일종가 기준, 없으면 체결가 기준
+    price_for_qty = qty_price if qty_price is not None else buy_price
     if use_net_calculation:
-        quantity = calc_buy_quantity_net(budget, buy_price, fee_rate, apply_fee)
+        quantity = calc_buy_quantity_net(budget, price_for_qty, fee_rate, apply_fee)
     else:
-        quantity = calc_buy_quantity(budget, buy_price, fee_rate, apply_fee)
+        quantity = calc_buy_quantity(budget, price_for_qty, fee_rate, apply_fee)
 
     if quantity < 1:
         return BuyResult(cash, avg_cost, total_qty, 0, 0.0)
@@ -229,3 +233,18 @@ def create_buy_trade(
         tier=tier,
         tier_slots=tier_slots,
     )
+
+
+def record_equity(
+    equity: list[dict[str, float]],
+    cash_history: list[dict[str, float]],
+    time: int,
+    cash: float,
+    qty: int,
+    price: float,
+) -> float:
+    """포트폴리오 가치를 기록하고 반환."""
+    value = calc_portfolio_value(cash, qty, price)
+    equity.append({"time": time, "value": value})
+    cash_history.append({"time": time, "value": cash})
+    return value

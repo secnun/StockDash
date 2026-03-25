@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.models.validators import PositiveCapitalValidator
+
 
 class PeriodIndependentStats(BaseModel):
     """기간별 독립 백테스트 결과. 연도별 또는 월별."""
@@ -74,7 +76,7 @@ class PerformanceMetrics(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class BacktestRequest(BaseModel):
+class BacktestRequest(BaseModel, PositiveCapitalValidator):
     """Request model for single backtest."""
 
     strategy_id: str = Field(alias="strategyId")
@@ -87,13 +89,6 @@ class BacktestRequest(BaseModel):
     market: str = Field(default="us")
 
     model_config = {"populate_by_name": True}
-
-    @field_validator("initial_capital")
-    @classmethod
-    def initial_capital_must_be_positive(cls, v: float) -> float:
-        if v <= 0:
-            raise ValueError("initial_capital must be greater than 0")
-        return v
 
 
 class BacktestResponse(BaseModel):

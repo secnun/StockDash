@@ -55,10 +55,15 @@ def cluster_and_select_representatives(
     # Step 3: Adaptive K — determine cluster count from pool size
     actual_k = min(diversity_slots, max(5, len(pool) // 10))
 
-    # Extract numeric parameter values
-    param_keys = sorted(pool[0]["params"].keys())
+    # Extract numeric parameter values (skip string params like stopLossDayBuy)
+    param_keys = sorted(
+        k for k in pool[0]["params"].keys()
+        if isinstance(pool[0]["params"].get(k), (int, float))
+    )
+    if not param_keys:
+        return (top_guaranteed + pool[:diversity_slots])[:target_total]
     param_matrix = np.array([
-        [result["params"].get(key, 0) for key in param_keys]
+        [float(result["params"].get(key, 0)) for key in param_keys]
         for result in pool
     ])
 

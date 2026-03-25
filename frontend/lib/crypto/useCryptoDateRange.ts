@@ -20,12 +20,12 @@ export interface UseCryptoDateRangeReturn {
  * @param coin - 코인 ID (예: 'btc')
  * @param market - 마켓 ID (예: 'usdt')
  */
-export function useCryptoDateRange(coin: string, market: string): UseCryptoDateRangeReturn {
+export function useCryptoDateRange(coin: string, market: string, timeframe: string = '4h'): UseCryptoDateRangeReturn {
   const [dateRange, setDateRange] = useState<CryptoDateRange | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 캐시: coin/market 조합별 결과 저장
+  // 캐시: coin/market/timeframe 조합별 결과 저장
   const cacheRef = useRef<Record<string, CryptoDateRange>>({});
 
   const fetchDateRange = useCallback(async () => {
@@ -34,7 +34,7 @@ export function useCryptoDateRange(coin: string, market: string): UseCryptoDateR
       return;
     }
 
-    const cacheKey = `${coin.toLowerCase()}-${market.toLowerCase()}`;
+    const cacheKey = `${coin.toLowerCase()}-${market.toLowerCase()}-${timeframe}`;
 
     // 캐시 확인
     if (cacheRef.current[cacheKey]) {
@@ -46,7 +46,7 @@ export function useCryptoDateRange(coin: string, market: string): UseCryptoDateR
     setError(null);
 
     try {
-      const data = await fetchCryptoDateRange(coin, market);
+      const data = await fetchCryptoDateRange(coin, market, timeframe);
 
       // 캐시에 저장
       cacheRef.current[cacheKey] = data;
@@ -58,19 +58,19 @@ export function useCryptoDateRange(coin: string, market: string): UseCryptoDateR
     } finally {
       setIsLoading(false);
     }
-  }, [coin, market]);
+  }, [coin, market, timeframe]);
 
-  // coin/market 변경 시 자동 조회
+  // coin/market/timeframe 변경 시 자동 조회
   useEffect(() => {
     void fetchDateRange();
   }, [fetchDateRange]);
 
   const refetch = useCallback(() => {
     // 캐시 무효화 후 재조회
-    const cacheKey = `${coin.toLowerCase()}-${market.toLowerCase()}`;
+    const cacheKey = `${coin.toLowerCase()}-${market.toLowerCase()}-${timeframe}`;
     delete cacheRef.current[cacheKey];
     void fetchDateRange();
-  }, [coin, market, fetchDateRange]);
+  }, [coin, market, timeframe, fetchDateRange]);
 
   return {
     dateRange,

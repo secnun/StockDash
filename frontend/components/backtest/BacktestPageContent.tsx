@@ -35,15 +35,24 @@ export default function BacktestPageContent({ market, title }: BacktestPageConte
   // Backend hook for date range API
   const { isBackendAvailable, getDateRange } = useBackendBacktest();
 
+  // 해외 레버리지 전용 티커 (QQQ 제외)
+  const OVERSEAS_EXCLUDE = ['qqq'];
+  const DEFAULT_TICKER: Record<string, string> = { us: 'soxl' };
+
   // 티커 목록 로드
   useEffect(() => {
     async function fetchTickers() {
       try {
         const res = await fetch(`/api/tickers?market=${market}`);
         const data = await res.json();
-        setTickers(data.tickers);
-        if (data.tickers.length > 0) {
-          setSelectedTicker(data.tickers[0].id);
+        const filtered = market === 'us'
+          ? data.tickers.filter((t: Ticker) => !OVERSEAS_EXCLUDE.includes(t.id))
+          : data.tickers;
+        setTickers(filtered);
+        if (filtered.length > 0) {
+          const defaultId = DEFAULT_TICKER[market];
+          const found = filtered.find((t: Ticker) => t.id === defaultId);
+          setSelectedTicker(found ? found.id : filtered[0].id);
         }
       } catch (err) {
         console.error('Failed to fetch tickers:', err);
